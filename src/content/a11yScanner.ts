@@ -352,9 +352,28 @@ const highlighter = new A11yHighlighter();
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (isFocusRuleMessage(message)) {
-    const focused = highlighter.blinkRule(message.ruleId);
-    sendResponse({ ok: focused });
-    return false;
+    void (async (): Promise<void> => {
+      let focused = highlighter.blinkRule(message.ruleId);
+
+      // If highlights are currently hidden, scan and render only the clicked rule.
+      if (!focused) {
+        try {
+          const violations = await runA11yScan();
+          const selectedRuleViolations = violations.filter((violation) => violation.id === message.ruleId);
+
+          if (selectedRuleViolations.length > 0) {
+            highlighter.drawHighlights(selectedRuleViolations);
+            focused = highlighter.blinkRule(message.ruleId);
+          }
+        } catch {
+          focused = false;
+        }
+      }
+
+      sendResponse({ ok: focused });
+    })();
+
+    return true;
   }
 
   if (isToggleHighlightsMessage(message)) {

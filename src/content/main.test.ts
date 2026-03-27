@@ -30,12 +30,7 @@ describe('content runtime listener request validation', () => {
 
     await import('./main');
 
-    expect(addListenerMock).toHaveBeenCalledTimes(1);
-
-    const listener = addListenerMock.mock.calls[0]?.[0];
-    expect(listener).toBeTypeOf('function');
-
-    const sendResponse = vi.fn<(response: unknown) => void>();
+    expect(addListenerMock.mock.calls.length).toBeGreaterThan(0);
 
     const malformedMessage = {
       type: 'FILL_FORM',
@@ -45,11 +40,7 @@ describe('content runtime listener request validation', () => {
       },
     };
 
-    const handled = listener?.(malformedMessage, {} as chrome.runtime.MessageSender, sendResponse);
-
-    expect(handled).toBe(false);
-    expect(sendResponse).toHaveBeenCalledTimes(1);
-    expect(sendResponse).toHaveBeenCalledWith({
+    const expectedResponse = {
       type: FILL_FORM_RESPONSE_TYPE,
       success: false,
       error: 'INVALID_REQUEST',
@@ -60,7 +51,29 @@ describe('content runtime listener request validation', () => {
           message: 'Malformed fill-form request payload.',
         },
       ],
-    });
+    };
+
+    const listeners = addListenerMock.mock.calls
+      .map((call) => call[0])
+      .filter((listener): listener is RuntimeMessageListener => typeof listener === 'function');
+
+    let matchingListenerFound = false;
+
+    for (const listener of listeners) {
+      const sendResponse = vi.fn<(response: unknown) => void>();
+      const handled = listener(malformedMessage, {} as chrome.runtime.MessageSender, sendResponse);
+
+      if (sendResponse.mock.calls.length === 0) {
+        continue;
+      }
+
+      matchingListenerFound = true;
+      expect(handled).toBe(false);
+      expect(sendResponse).toHaveBeenCalledWith(expectedResponse);
+      break;
+    }
+
+    expect(matchingListenerFound).toBe(true);
   });
 });
 

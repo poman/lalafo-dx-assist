@@ -4,6 +4,10 @@ import {
   A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
   A11Y_RESULTS_BY_TAB_STORAGE_KEY,
   AUTO_A11Y_SCAN_STORAGE_KEY,
+  AUTO_SEO_SCAN_STORAGE_KEY,
+  SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY,
+  SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+  SEO_RESULTS_BY_TAB_STORAGE_KEY,
 } from '../shared/constants';
 import { Logo } from './Logo';
 import {
@@ -24,7 +28,6 @@ import {
 import {
   focusA11yRuleOnActiveTab,
   requestA11yScanFromActiveTab,
-  toggleA11yHighlightsOnActiveTab,
   type A11yPopupScanStatus,
 } from './a11yScanner';
 import { requestSeoReportFromActiveTab } from './seoScanner';
@@ -93,6 +96,14 @@ const isWebVitalsUpdateMessage = (value: unknown): value is WebVitalsUpdateMessa
   );
 };
 
+const isSeoReportPayload = (value: unknown): value is SeoReportPayload => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return isObjectRecord(value.meta) && Array.isArray(value.headings) && isObjectRecord(value.vitals);
+};
+
 type A11yPopupStatus =
   | { kind: 'idle' }
   | { kind: 'sent' }
@@ -102,7 +113,8 @@ type A11yPopupStatus =
 
 export const App = (): ReactElement => {
   const [enabled, setEnabled] = useState(false);
-  const [autoA11yEnabled, setAutoA11yEnabled] = useState(false);
+  const [autoA11yEnabled, setAutoA11yEnabled] = useState(true);
+  const [autoSeoEnabled, setAutoSeoEnabled] = useState(true);
   const [isBusy, setIsBusy] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -122,13 +134,15 @@ export const App = (): ReactElement => {
   const [isA11yBusy, setIsA11yBusy] = useState(false);
   const [a11yStatus, setA11yStatus] = useState<A11yPopupStatus>({ kind: 'idle' });
   const [a11yViolations, setA11yViolations] = useState<A11yViolation[]>([]);
-  const [a11yHighlightsEnabled, setA11yHighlightsEnabled] = useState(false);
+  const [showA11yHighlights, setShowA11yHighlights] = useState(false);
   const [a11yBlinkOnClick, setA11yBlinkOnClick] = useState(true);
   const [a11ySelectedRuleId, setA11ySelectedRuleId] = useState<string | null>(null);
   const [isSeoBusy, setIsSeoBusy] = useState(false);
   const [seoStatus, setSeoStatus] = useState<string | null>(null);
   const [seoReport, setSeoReport] = useState<SeoReportPayload | null>(null);
   const [seoTabId, setSeoTabId] = useState<number | null>(null);
+  const [a11yTabIssueCount, setA11yTabIssueCount] = useState(0);
+  const [seoTabIssueCount, setSeoTabIssueCount] = useState(0);
 
   const seoIssues = useMemo(() => {
     if (!seoReport) {
@@ -183,13 +197,52 @@ export const App = (): ReactElement => {
   useEffect(() => {
     const loadState = async () => {
       try {
-        const [result, autoA11yData] = await Promise.all([
+        const [result, settingsData, activeTabs] = await Promise.all([
           syncQaDarkModeWithActiveTab(),
-          chrome.storage.local.get([AUTO_A11Y_SCAN_STORAGE_KEY]),
+          chrome.storage.local.get([
+            AUTO_A11Y_SCAN_STORAGE_KEY,
+            AUTO_SEO_SCAN_STORAGE_KEY,
+            SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY,
+            A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+            SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+            SEO_RESULTS_BY_TAB_STORAGE_KEY,
+          ]),
+          chrome.tabs.query({ active: true, currentWindow: true }),
         ]);
 
+        const activeTabId = typeof activeTabs[0]?.id === 'number' ? String(activeTabs[0].id) : null;
+        const a11yCountByTab = isObjectRecord(settingsData[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+          ? (settingsData[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : {};
+        const seoCountByTab = isObjectRecord(settingsData[SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+          ? (settingsData[SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : {};
+        const seoResultsByTab = isObjectRecord(settingsData[SEO_RESULTS_BY_TAB_STORAGE_KEY])
+          ? (settingsData[SEO_RESULTS_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : {};
+
         setEnabled(result.enabled);
-        setAutoA11yEnabled(autoA11yData[AUTO_A11Y_SCAN_STORAGE_KEY] === true);
+        setAutoA11yEnabled(settingsData[AUTO_A11Y_SCAN_STORAGE_KEY] !== false);
+        setAutoSeoEnabled(settingsData[AUTO_SEO_SCAN_STORAGE_KEY] !== false);
+        setShowA11yHighlights(settingsData[SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY] === true);
+        setA11yTabIssueCount(
+          activeTabId && typeof a11yCountByTab[activeTabId] === 'number'
+            ? (a11yCountByTab[activeTabId] as number)
+            : 0,
+        );
+        setSeoTabIssueCount(
+          activeTabId && typeof seoCountByTab[activeTabId] === 'number'
+            ? (seoCountByTab[activeTabId] as number)
+            : 0,
+        );
+
+        if (activeTabId && isObjectRecord(seoResultsByTab[activeTabId])) {
+          const cached = seoResultsByTab[activeTabId] as Record<string, unknown>;
+          if (isSeoReportPayload(cached.report)) {
+            setSeoReport(cached.report);
+            setSeoStatus('Status: cached SEO report loaded.');
+          }
+        }
         if (!result.appliedToTab) {
           setErrorText(result.warning ?? 'Could not sync QA Dark Mode on this tab.');
         }
@@ -201,6 +254,56 @@ export const App = (): ReactElement => {
     };
 
     void loadState();
+
+    const onStorageChanged = (changes: Record<string, chrome.storage.StorageChange>, areaName: string): void => {
+      if (
+        areaName !== 'local' ||
+        (!(A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY in changes) &&
+          !(SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY in changes) &&
+          !(AUTO_SEO_SCAN_STORAGE_KEY in changes) &&
+          !(SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY in changes))
+      ) {
+        return;
+      }
+
+      if (AUTO_SEO_SCAN_STORAGE_KEY in changes) {
+        setAutoSeoEnabled(changes[AUTO_SEO_SCAN_STORAGE_KEY]?.newValue !== false);
+      }
+
+      if (SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY in changes) {
+        setShowA11yHighlights(changes[SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY]?.newValue === true);
+      }
+
+      void (async () => {
+        const [activeTabs, counts] = await Promise.all([
+          chrome.tabs.query({ active: true, currentWindow: true }),
+          chrome.storage.local.get([A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY, SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY]),
+        ]);
+
+        const activeTabId = typeof activeTabs[0]?.id === 'number' ? String(activeTabs[0].id) : null;
+        if (!activeTabId) {
+          setA11yTabIssueCount(0);
+          setSeoTabIssueCount(0);
+          return;
+        }
+
+        const a11yCountByTab = isObjectRecord(counts[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+          ? (counts[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : {};
+        const seoCountByTab = isObjectRecord(counts[SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+          ? (counts[SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : {};
+
+        setA11yTabIssueCount(typeof a11yCountByTab[activeTabId] === 'number' ? (a11yCountByTab[activeTabId] as number) : 0);
+        setSeoTabIssueCount(typeof seoCountByTab[activeTabId] === 'number' ? (seoCountByTab[activeTabId] as number) : 0);
+      })();
+    };
+
+    chrome.storage.onChanged.addListener(onStorageChanged);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -393,6 +496,76 @@ export const App = (): ReactElement => {
     }
   };
 
+  const onAutoSeoToggleChange = async (nextEnabled: boolean): Promise<void> => {
+    setAutoSeoEnabled(nextEnabled);
+
+    try {
+      await chrome.storage.local.set({ [AUTO_SEO_SCAN_STORAGE_KEY]: nextEnabled });
+    } catch {
+      setAutoSeoEnabled(!nextEnabled);
+      setErrorText('Could not save automatic SEO scan setting.');
+    }
+  };
+
+  const onShowA11yHighlightsToggleChange = async (nextEnabled: boolean): Promise<void> => {
+    setShowA11yHighlights(nextEnabled);
+
+    try {
+      await chrome.storage.local.set({ [SHOW_A11Y_HIGHLIGHTS_STORAGE_KEY]: nextEnabled });
+      const result = await requestA11yScanFromActiveTab({ showHighlights: nextEnabled });
+      if (result.kind === 'success') {
+        setA11yViolations(result.violations);
+        setA11yStatus({ kind: 'success', count: result.violations.length });
+        setA11yTabIssueCount(result.violations.length);
+        await persistA11yResultsForActiveTab(result.violations);
+        return;
+      }
+
+      if (result.kind === 'restricted-tab') {
+        setA11yStatus({ kind: 'restricted-tab' });
+        return;
+      }
+
+      setA11yStatus({ kind: 'failure', error: result.error, detail: result.detail });
+    } catch {
+      setShowA11yHighlights(!nextEnabled);
+      setErrorText('Could not save accessibility highlight visibility setting.');
+    }
+  };
+
+  const persistA11yResultsForActiveTab = async (violations: A11yViolation[]): Promise<void> => {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabId = typeof active?.id === 'number' ? String(active.id) : null;
+    if (!tabId) {
+      return;
+    }
+
+    const storage = (await chrome.storage.local.get([
+      A11Y_RESULTS_BY_TAB_STORAGE_KEY,
+      A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+    ])) as Record<string, unknown>;
+
+    const byTab = isObjectRecord(storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY])
+      ? (storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+      : {};
+    const countByTab = isObjectRecord(storage[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+      ? (storage[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+      : {};
+
+    byTab[tabId] = {
+      tabId: Number(tabId),
+      url: active?.url ?? '',
+      violations,
+      scannedAt: Date.now(),
+    };
+    countByTab[tabId] = violations.length;
+
+    await chrome.storage.local.set({
+      [A11Y_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
+      [A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
+    });
+  };
+
   const updateTemplateConfig = (updater: (prev: IMarketTemplateConfig) => IMarketTemplateConfig): void => {
     setTemplateConfig((prev) => (prev ? updater(prev) : prev));
   };
@@ -554,7 +727,7 @@ export const App = (): ReactElement => {
     setA11yStatus({ kind: 'sent' });
 
     try {
-      const result = await requestA11yScanFromActiveTab({ showHighlights: a11yHighlightsEnabled });
+      const result = await requestA11yScanFromActiveTab({ showHighlights: showA11yHighlights });
 
       if (result.kind === 'restricted-tab') {
         setA11yViolations([]);
@@ -570,46 +743,14 @@ export const App = (): ReactElement => {
 
       setA11yViolations(result.violations);
       setA11yStatus({ kind: 'success', count: result.violations.length });
+      setA11yTabIssueCount(result.violations.length);
+      await persistA11yResultsForActiveTab(result.violations);
       setA11ySelectedRuleId(result.violations[0]?.id ?? null);
       setActiveTab('accessibility');
 
       await chrome.storage.local.set({
         [A11Y_LAST_SELECTED_RULE_STORAGE_KEY]: result.violations[0]?.id ?? null,
       });
-    } finally {
-      setIsA11yBusy(false);
-    }
-  };
-
-  const toggleAccessibilityHighlights = async (enabled: boolean): Promise<void> => {
-    setIsA11yBusy(true);
-
-    try {
-      if (enabled) {
-        const scanResult = await requestA11yScanFromActiveTab({ showHighlights: true });
-        if (scanResult.kind === 'success') {
-          setA11yViolations(scanResult.violations);
-          setA11yStatus({ kind: 'success', count: scanResult.violations.length });
-          setA11yHighlightsEnabled(true);
-          return;
-        }
-
-        if (scanResult.kind === 'restricted-tab') {
-          setA11yStatus({ kind: 'restricted-tab' });
-          return;
-        }
-
-        setA11yStatus({ kind: 'failure', error: scanResult.error, detail: scanResult.detail });
-        return;
-      }
-
-      const applied = await toggleA11yHighlightsOnActiveTab(false);
-      if (!applied) {
-        setA11yStatus({ kind: 'restricted-tab' });
-        return;
-      }
-
-      setA11yHighlightsEnabled(false);
     } finally {
       setIsA11yBusy(false);
     }
@@ -934,20 +1075,12 @@ export const App = (): ReactElement => {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === 'fill-form'}
-          className={`tab-button ${activeTab === 'fill-form' ? 'active' : ''}`}
-          onClick={() => setActiveTab('fill-form')}
-        >
-          Fill form
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={activeTab === 'accessibility'}
           className={`tab-button ${activeTab === 'accessibility' ? 'active' : ''}`}
           onClick={() => setActiveTab('accessibility')}
         >
-          Accessibility
+          <span>Accessibility</span>
+          {a11yTabIssueCount > 0 ? <span className="tab-badge">{a11yTabIssueCount}</span> : null}
         </button>
         <button
           type="button"
@@ -956,34 +1089,95 @@ export const App = (): ReactElement => {
           className={`tab-button ${activeTab === 'seo' ? 'active' : ''}`}
           onClick={() => setActiveTab('seo')}
         >
-          SEO
+          <span>SEO</span>
+          {seoTabIssueCount > 0 ? <span className="tab-badge">{seoTabIssueCount}</span> : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'fill-form'}
+          className={`tab-button ${activeTab === 'fill-form' ? 'active' : ''}`}
+          onClick={() => setActiveTab('fill-form')}
+        >
+          Fill form
         </button>
       </div>
 
       {activeTab === 'main' ? (
         <section className="tab-panel" role="tabpanel" aria-label="Main">
-          <label className="toggle-row">
-            <input
-              type="checkbox"
-              checked={enabled}
-              disabled={isBusy}
-              onChange={(event) => {
-                void onToggleChange(event.target.checked);
-              }}
-            />
-            <span>Enable QA Dark Mode</span>
-          </label>
+          <article className="main-feature-card" aria-label="Dark mode settings">
+            <h3 className="main-feature-title">Dark mode</h3>
+            <label className="toggle-row main-toggle-row">
+              <input
+                type="checkbox"
+                className="toggle-input"
+                checked={enabled}
+                disabled={isBusy}
+                onChange={(event) => {
+                  void onToggleChange(event.target.checked);
+                }}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
+              <span className="toggle-copy">
+                <span className="toggle-title">Enable QA Dark Mode</span>
+                <span className="toggle-description">Apply QA visual dark mode and style audit overlay.</span>
+              </span>
+            </label>
+          </article>
 
-          <label className="toggle-row">
-            <input
-              type="checkbox"
-              checked={autoA11yEnabled}
-              onChange={(event) => {
-                void onAutoA11yToggleChange(event.target.checked);
-              }}
-            />
-            <span>Enable auto Accessibility checks on Lalafo page navigation</span>
-          </label>
+          <article className="main-feature-card" aria-label="Accessibility testing settings">
+            <h3 className="main-feature-title">Accessibility Testing</h3>
+            <label className="toggle-row main-toggle-row">
+              <input
+                type="checkbox"
+                className="toggle-input"
+                checked={autoA11yEnabled}
+                onChange={(event) => {
+                  void onAutoA11yToggleChange(event.target.checked);
+                }}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
+              <span className="toggle-copy">
+                <span className="toggle-title">Enable auto Accessibility checks</span>
+                <span className="toggle-description">Run WCAG scan automatically on Lalafo page navigation.</span>
+              </span>
+            </label>
+
+            <label className="toggle-row main-toggle-row">
+              <input
+                type="checkbox"
+                className="toggle-input"
+                checked={showA11yHighlights}
+                onChange={(event) => {
+                  void onShowA11yHighlightsToggleChange(event.target.checked);
+                }}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
+              <span className="toggle-copy">
+                <span className="toggle-title">Show highlights</span>
+                <span className="toggle-description">When enabled, accessibility highlights are shown after scans and on supported page navigation.</span>
+              </span>
+            </label>
+          </article>
+
+          <article className="main-feature-card" aria-label="SEO analyzer settings">
+            <h3 className="main-feature-title">SEO analyzer</h3>
+            <label className="toggle-row main-toggle-row">
+              <input
+                type="checkbox"
+                className="toggle-input"
+                checked={autoSeoEnabled}
+                onChange={(event) => {
+                  void onAutoSeoToggleChange(event.target.checked);
+                }}
+              />
+              <span className="toggle-switch" aria-hidden="true" />
+              <span className="toggle-copy">
+                <span className="toggle-title">Enable auto SEO checks</span>
+                <span className="toggle-description">Run technical/on-page SEO scan on Lalafo page navigation.</span>
+              </span>
+            </label>
+          </article>
           {errorText ? <p className="error-text">{errorText}</p> : null}
         </section>
       ) : null}
@@ -1055,17 +1249,6 @@ export const App = (): ReactElement => {
           </div>
 
           <div className="a11y-config-stack">
-            <label className="a11y-config-row">
-              <input
-                type="checkbox"
-                checked={!a11yHighlightsEnabled}
-                disabled={isA11yBusy}
-                onChange={(event) => {
-                  void toggleAccessibilityHighlights(!event.target.checked);
-                }}
-              />
-              <span>Hide highlights</span>
-            </label>
 
             <label className="a11y-config-row">
               <input
