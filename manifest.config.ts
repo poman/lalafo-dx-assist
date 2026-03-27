@@ -3,8 +3,11 @@ import { defineManifest } from '@crxjs/vite-plugin';
 export default defineManifest({
   manifest_version: 3,
   name: 'Lalafo DX Assist',
-  description: 'QA toolkit for Lalafo domains: dark mode auditing and developer helpers.',
+  short_name: 'DX Assist',
+  description:
+    'QA and developer toolkit for Lalafo domains: dark mode auditing, accessibility checks, SEO diagnostics, and form-filling helpers.',
   version: '0.1.0',
+  homepage_url: 'https://github.com/poman/lalafo-dx-assist',
   action: {
     default_popup: 'index.html',
     default_title: 'Lalafo DX Assist',
