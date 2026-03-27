@@ -1,0 +1,26 @@
+html {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+
+img,
+video,
+canvas,
+svg {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+
+/* QA auditor: highlight possible hardcoded white inline backgrounds. */
+[style*="background: white" i],
+[style*="background:white" i],
+[style*="background-color: white" i],
+[style*="background-color:white" i],
+[style*="background-color: #fff" i],
+[style*="background-color:#fff" i],
+[style*="background: #fff" i],
+[style*="background:#fff" i],
+[style*="background-color: #ffffff" i],
+[style*="background: #ffffff" i] {
+  outline: 3px solid #ff2727 !important;
+  outline-offset: -1px !important;
+}
+
