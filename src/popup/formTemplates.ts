@@ -4,7 +4,8 @@ import type { MarketCode } from '../shared/types/region';
 
 const STORAGE_KEY = 'formFillerTemplateConfigByMarket';
 
-export type TemplateType = 'login' | 'registration' | 'checkout';
+export type BaseTemplateType = 'login' | 'registration' | 'checkout';
+export type TemplateType = BaseTemplateType | 'custom';
 
 export interface ITemplateField {
   id: string;
@@ -54,6 +55,7 @@ const getDefaultConfig = (market: MarketCode): IMarketTemplateConfig => {
   const loginEmailId = 'default-login-jane-email';
   const registrationId = 'default-registration';
   const checkoutId = 'default-checkout';
+  const customId = 'default-custom';
 
   const johnPhone = defaults.registration.phone;
 
@@ -61,7 +63,7 @@ const getDefaultConfig = (market: MarketCode): IMarketTemplateConfig => {
     forms: [
       {
         id: loginPhoneId,
-        name: 'Customer: John (Phone)',
+        name: 'John (Phone)',
         type: 'login',
         isDefault: true,
         fields: [
@@ -71,7 +73,7 @@ const getDefaultConfig = (market: MarketCode): IMarketTemplateConfig => {
       },
       {
         id: loginEmailId,
-        name: 'Customer: Jane (Email)',
+        name: 'Jane (Email)',
         type: 'login',
         isDefault: true,
         fields: [
@@ -81,7 +83,7 @@ const getDefaultConfig = (market: MarketCode): IMarketTemplateConfig => {
       },
       {
         id: registrationId,
-        name: 'New Customer (Standard)',
+        name: 'Standard Registration',
         type: 'registration',
         isDefault: true,
         fields: [
@@ -132,11 +134,19 @@ const getDefaultConfig = (market: MarketCode): IMarketTemplateConfig => {
           ),
         ],
       },
+      {
+        id: customId,
+        name: 'Custom Template',
+        type: 'custom',
+        isDefault: true,
+        fields: [field('customField', 'Custom field', 'form input[type="text"]', '', 'text')],
+      },
     ],
     activeByType: {
       login: loginPhoneId,
       registration: registrationId,
       checkout: checkoutId,
+      custom: customId,
     },
   };
 };
@@ -154,23 +164,27 @@ const normalizeConfig = (market: MarketCode, config: IMarketTemplateConfig): IMa
     return match ? match.id : defaults.activeByType[type];
   };
 
+  const configActiveByType = (config.activeByType ?? {}) as Partial<Record<TemplateType, string>>;
+
   return {
     forms,
     activeByType: {
       login:
-        forms.some((item) => item.id === config.activeByType.login && item.type === 'login')
-          ? config.activeByType.login
+        forms.some((item) => item.id === configActiveByType.login && item.type === 'login')
+          ? (configActiveByType.login as string)
           : firstByType('login'),
       registration:
-        forms.some(
-          (item) => item.id === config.activeByType.registration && item.type === 'registration',
-        )
-          ? config.activeByType.registration
+        forms.some((item) => item.id === configActiveByType.registration && item.type === 'registration')
+          ? (configActiveByType.registration as string)
           : firstByType('registration'),
       checkout:
-        forms.some((item) => item.id === config.activeByType.checkout && item.type === 'checkout')
-          ? config.activeByType.checkout
+        forms.some((item) => item.id === configActiveByType.checkout && item.type === 'checkout')
+          ? (configActiveByType.checkout as string)
           : firstByType('checkout'),
+      custom:
+        forms.some((item) => item.id === configActiveByType.custom && item.type === 'custom')
+          ? (configActiveByType.custom as string)
+          : firstByType('custom'),
     },
   };
 };
@@ -202,7 +216,7 @@ export const saveTemplateConfig = async (
   });
 };
 
-const getFormByType = (config: IMarketTemplateConfig, type: TemplateType): ITemplateForm | null => {
+const getFormByType = (config: IMarketTemplateConfig, type: BaseTemplateType): ITemplateForm | null => {
   const activeId = config.activeByType[type];
   const selected = config.forms.find((item) => item.id === activeId && item.type === type);
   if (selected) {
@@ -274,6 +288,15 @@ export const createCustomForm = (type: TemplateType, name: string): ITemplateFor
         field('password', 'Password', 'form input[type="password"]', '', 'password'),
         field('acceptRules', 'Accept rules', 'form input[type="checkbox"]', 'true', 'checkbox'),
       ],
+    };
+  }
+
+  if (type === 'custom') {
+    return {
+      id,
+      name,
+      type,
+      fields: [field('customField', 'Custom field', 'form input[type="text"]', '', 'text')],
     };
   }
 

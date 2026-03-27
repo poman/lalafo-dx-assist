@@ -35,20 +35,19 @@ export const App = (): ReactElement => {
   const [autoFillStatus, setAutoFillStatus] = useState<AutoFillPopupStatus | null>(null);
 
   const [newFormName, setNewFormName] = useState('');
-  const [newFormType, setNewFormType] = useState<TemplateType>('login');
+  const [newFormType, setNewFormType] = useState<TemplateType>('custom');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
-  const [openSections, setOpenSections] = useState<Record<FillSection, boolean>>({
-    login: true,
-    register: true,
-    checkout: true,
-    custom: true,
-  });
+  const [openSection, setOpenSection] = useState<FillSection>('login');
 
   const getAutoFillStatusText = (status: AutoFillPopupStatus): string => {
     if (status.kind === 'sent') return 'Status: sent';
     if (status.kind === 'restricted-tab') return 'Status: restricted tab';
-    if (status.kind === 'success') return `Status: success (${status.detectedFormKind})`;
+    if (status.kind === 'success') {
+      return status.detectedFormKind === 'unknown'
+        ? 'Status: success'
+        : `Status: success (${status.detectedFormKind})`;
+    }
     return `Status: failure (${status.error})`;
   };
 
@@ -162,13 +161,8 @@ export const App = (): ReactElement => {
   }, [templateConfig]);
 
   const customForms = useMemo(
-    () => (templateConfig ? templateConfig.forms.filter((item) => !item.isDefault) : []),
+    () => (templateConfig ? templateConfig.forms.filter((item) => item.type === 'custom') : []),
     [templateConfig],
-  );
-
-  const editingPreset = useMemo(
-    () => templateConfig?.forms.find((item) => item.id === editingPresetId) ?? null,
-    [editingPresetId, templateConfig],
   );
 
   const handleTemplateFieldChange = (
@@ -186,6 +180,13 @@ export const App = (): ReactElement => {
               fields: form.fields.map((field) => (field.id === fieldId ? { ...field, ...next } : field)),
             },
       ),
+    }));
+  };
+
+  const handlePresetNameChange = (formId: string, name: string): void => {
+    updateTemplateConfig((prev) => ({
+      ...prev,
+      forms: prev.forms.map((form) => (form.id === formId ? { ...form, name } : form)),
     }));
   };
 
@@ -246,6 +247,7 @@ export const App = (): ReactElement => {
             prev.activeByType.registration === formId ? fallback('registration') : prev.activeByType.registration,
           checkout:
             prev.activeByType.checkout === formId ? fallback('checkout') : prev.activeByType.checkout,
+          custom: prev.activeByType.custom === formId ? fallback('custom') : prev.activeByType.custom,
         },
       };
     });
@@ -266,55 +268,142 @@ export const App = (): ReactElement => {
     }
   };
 
+  const getPresetLabel = (name: string): string => {
+    return name.replace(/\bCustomer:?\s*/gi, '').replace(/\s{2,}/g, ' ').trim();
+  };
+
+  const renderPresetEditor = (form: ITemplateForm): ReactElement => {
+    return (
+      <div className="editor-box preset-editor-box">
+        <div className="form-card-header">
+          <h3>Edit preset: {getPresetLabel(form.name)}</h3>
+          <button type="button" className="mini-button" onClick={() => setEditingPresetId(null)}>
+            Close
+          </button>
+        </div>
+
+        <label className="field-stack preset-title-field">
+          <span className="field-caption">Preset name</span>
+          <input
+            className="field-input field-label"
+            value={form.name}
+            onChange={(event) => {
+              handlePresetNameChange(form.id, event.target.value);
+            }}
+          />
+        </label>
+
+        <div className="preset-editor-fields">
+          {form.fields.map((field) => (
+            <div className="preset-field-card" key={field.id}>
+              <label className="field-stack">
+                <span className="field-caption">Name</span>
+                <input
+                  className="field-input field-label"
+                  value={field.label}
+                  onChange={(event) => {
+                    handleTemplateFieldChange(form.id, field.id, { label: event.target.value });
+                  }}
+                />
+              </label>
+
+              <label className="field-stack">
+                <span className="field-caption">Selector</span>
+                <input
+                  className="field-input"
+                  value={field.selector}
+                  onChange={(event) => {
+                    handleTemplateFieldChange(form.id, field.id, { selector: event.target.value });
+                  }}
+                />
+              </label>
+
+              <label className="field-stack">
+                <span className="field-caption">Value</span>
+                <input
+                  className="field-input"
+                  value={field.value}
+                  type={field.inputKind === 'password' ? 'password' : 'text'}
+                  onChange={(event) => {
+                    handleTemplateFieldChange(form.id, field.id, { value: event.target.value });
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                className="mini-button danger"
+                onClick={() => removeFieldFromForm(form.id, field.id)}
+              >
+                Remove field
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" className="mini-button" onClick={() => addCustomFieldToForm(form.id)}>
+          + Add field
+        </button>
+      </div>
+    );
+  };
+
   const renderPresetButtons = (forms: ITemplateForm[]): ReactElement => {
     return (
       <div className="preset-row">
-        {forms.map((form) => (
-          <div className="preset-item" key={form.id}>
-            <button
-              type="button"
-              className="preset-button"
-              disabled={isAutoFillBusy}
-              onClick={() => {
-                void applyPreset(form);
-              }}
-            >
-              {form.name}
-            </button>
-            <button
-              type="button"
-              className="menu-button"
-              onClick={() => {
-                setMenuOpenId((prev) => (prev === form.id ? null : form.id));
-              }}
-            >
-              ...
-            </button>
-            {menuOpenId === form.id ? (
-              <div className="custom-menu">
+        {forms.map((form) => {
+          const isActive = templateConfig?.activeByType[form.type] === form.id;
+
+          return (
+            <div className="preset-item" key={form.id}>
+              <div className="preset-chip">
                 <button
                   type="button"
+                  className={`preset-button ${isActive ? 'active' : ''}`}
+                  disabled={isAutoFillBusy}
                   onClick={() => {
-                    setEditingPresetId(form.id);
-                    setMenuOpenId(null);
+                    void applyPreset(form);
                   }}
                 >
-                  Edit
+                  {getPresetLabel(form.name)}
                 </button>
                 <button
                   type="button"
-                  className="danger"
+                  className={`menu-button ${isActive ? 'active' : ''}`}
+                  aria-label={`Open preset actions for ${getPresetLabel(form.name)}`}
                   onClick={() => {
-                    deletePreset(form.id);
-                    setMenuOpenId(null);
+                    setMenuOpenId((prev) => (prev === form.id ? null : form.id));
                   }}
                 >
-                  Delete
+                  &#9662;
                 </button>
               </div>
-            ) : null}
-          </div>
-        ))}
+              {menuOpenId === form.id ? (
+                <div className="custom-menu">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPresetId(form.id);
+                      setMenuOpenId(null);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      deletePreset(form.id);
+                      setMenuOpenId(null);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -325,14 +414,16 @@ export const App = (): ReactElement => {
     forms: ITemplateForm[],
     withCreate = false,
   ): ReactElement => {
-    const isOpen = openSections[section];
+    const isOpen = openSection === section;
+    const sectionEditingPreset = forms.find((form) => form.id === editingPresetId) ?? null;
+    const showSaveButton = sectionEditingPreset !== null || withCreate;
 
     return (
       <article className="accordion-card" key={section}>
         <button
           type="button"
           className="accordion-header"
-          onClick={() => setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }))}
+          onClick={() => setOpenSection(section)}
         >
           <span>{title}</span>
           <span>{isOpen ? '-' : '+'}</span>
@@ -342,9 +433,11 @@ export const App = (): ReactElement => {
           <div className="accordion-body">
             {forms.length === 0 ? <p className="hint-text">No presets in this section.</p> : renderPresetButtons(forms)}
 
+            {sectionEditingPreset ? renderPresetEditor(sectionEditingPreset) : null}
+
             {withCreate ? (
               <div className="new-form-box">
-                <div className="field-row compact">
+                <div className="new-form-stack">
                   <input
                     className="field-input field-label"
                     placeholder="Preset name"
@@ -359,11 +452,27 @@ export const App = (): ReactElement => {
                     <option value="login">Login</option>
                     <option value="registration">Register</option>
                     <option value="checkout">Checkout</option>
+                    <option value="custom">Custom</option>
                   </select>
                   <button type="button" className="mini-button" onClick={createNewTemplateForm}>
                     Add New Preset
                   </button>
                 </div>
+              </div>
+            ) : null}
+
+            {showSaveButton ? (
+              <div className="section-actions-row">
+                <button
+                  type="button"
+                  className="action-button secondary"
+                  disabled={!templateConfig || !market}
+                  onClick={() => {
+                    void saveTemplates();
+                  }}
+                >
+                  Save presets
+                </button>
               </div>
             ) : null}
           </div>
@@ -457,76 +566,6 @@ export const App = (): ReactElement => {
             </div>
           ) : null}
 
-          {editingPreset ? (
-            <div className="editor-box">
-              <div className="form-card-header">
-                <h3>Edit preset: {editingPreset.name}</h3>
-                <button type="button" className="mini-button" onClick={() => setEditingPresetId(null)}>
-                  Close
-                </button>
-              </div>
-              <div className="field-head">
-                <span>Name</span>
-                <span>Selector</span>
-                <span>Value</span>
-                <span />
-              </div>
-              {editingPreset.fields.map((field) => (
-                <div className="field-row" key={field.id}>
-                  <input
-                    className="field-input field-label"
-                    value={field.label}
-                    onChange={(event) => {
-                      handleTemplateFieldChange(editingPreset.id, field.id, { label: event.target.value });
-                    }}
-                  />
-                  <input
-                    className="field-input"
-                    value={field.selector}
-                    onChange={(event) => {
-                      handleTemplateFieldChange(editingPreset.id, field.id, { selector: event.target.value });
-                    }}
-                  />
-                  <input
-                    className="field-input"
-                    value={field.value}
-                    type={field.inputKind === 'password' ? 'password' : 'text'}
-                    onChange={(event) => {
-                      handleTemplateFieldChange(editingPreset.id, field.id, { value: event.target.value });
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="mini-button danger"
-                    onClick={() => removeFieldFromForm(editingPreset.id, field.id)}
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="mini-button"
-                onClick={() => addCustomFieldToForm(editingPreset.id)}
-              >
-                + Add field
-              </button>
-            </div>
-          ) : null}
-
-          <div className="actions-row">
-            <button
-              type="button"
-              className="action-button secondary"
-              disabled={!templateConfig || !market}
-              onClick={() => {
-                void saveTemplates();
-              }}
-            >
-              Save presets
-            </button>
-            <span className="hint-mini align-center">Click any preset button to run autofill.</span>
-          </div>
 
           {autoFillStatus ? <p className="status-text">{getAutoFillStatusText(autoFillStatus)}</p> : null}
         </section>

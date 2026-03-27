@@ -5,12 +5,14 @@
 
 body {
   margin: 0;
-  min-width: 360px;
+  min-width: 420px;
   background: #f7f9fb;
   color: #1a2433;
 }
 
 .popup-root {
+  width: 420px;
+  box-sizing: border-box;
   padding: 14px;
 }
 
@@ -166,9 +168,16 @@ body {
 
 .preset-item {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.preset-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
 }
 
 .custom-item {
@@ -179,15 +188,22 @@ body {
 }
 
 .menu-button {
-  border: 1px solid #d7dee8;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #66758d;
+  border: 1px solid #b8e8c3;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: #eafaf0;
+  color: #2f8a47;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  padding: 6px 8px;
+  padding: 6px 9px;
   cursor: pointer;
+}
+
+.menu-button.active {
+  border-color: #98dca9;
+  background: #d6f3df;
+  color: #1f6f36;
 }
 
 .custom-menu {
@@ -221,10 +237,10 @@ body {
 }
 
 .preset-button {
-  border: 1px solid #d5e8da;
-  border-radius: 999px;
-  background: #f3fff6;
-  color: #1a7a33;
+  border: 1px solid #b8e8c3;
+  border-radius: 999px 0 0 999px;
+  background: #eafaf0;
+  color: #2f8a47;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -233,9 +249,9 @@ body {
 }
 
 .preset-button.active {
-  background: #22ca46;
-  border-color: #22ca46;
-  color: #ffffff;
+  background: #d6f3df;
+  border-color: #98dca9;
+  color: #1f6f36;
 }
 
 .field-row {
@@ -291,6 +307,15 @@ body {
   grid-template-columns: 1.2fr 1fr auto;
 }
 
+.new-form-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.new-form-stack .mini-button {
+  justify-self: start;
+}
+
 .field-row.compact {
   grid-template-columns: 1.2fr 1fr auto;
 }
@@ -310,6 +335,44 @@ body {
   background: #ffffff;
 }
 
+.preset-editor-box {
+  margin-top: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: #f8fbff;
+  border-color: #d7e4f3;
+}
+
+.preset-title-field {
+  margin-bottom: 8px;
+}
+
+.preset-editor-fields {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.preset-field-card {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #dce7f5;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.field-stack {
+  display: grid;
+  gap: 4px;
+}
+
+.field-caption {
+  color: #637188;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 @media (max-width: 820px) {
   .accordion-grid {
     grid-template-columns: 1fr;
@@ -320,6 +383,10 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-top: 10px;
+}
+
+.section-actions-row {
   margin-top: 10px;
 }
 
