@@ -17,8 +17,8 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
     "@crxjs/vite-plugin": "^2.1.0",
+    "@eslint/js": "^9.17.0",
     "@testing-library/react": "^16.1.0",
     "@types/chrome": "^0.0.292",
     "@types/react": "^18.3.12",
@@ -30,11 +30,11 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "jsdom": "^25.0.1",
+    "playwright": "^1.58.2",
+    "playwright-core": "^1.58.2",
     "sharp": "^0.34.4",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8"
   }
 }
-
-
