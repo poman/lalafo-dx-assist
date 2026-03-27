@@ -1,28 +1,28 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
 body {
   margin: 0;
-  min-width: 280px;
-  background: #111820;
-  color: #f2f5f8;
+  min-width: 360px;
+  background: #f7f9fb;
+  color: #1a2433;
 }
 
 .popup-root {
-  padding: 16px;
+  padding: 14px;
 }
 
 .popup-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 
 .popup-logo {
-  width: 28px;
+  width: 30px;
   height: 24px;
   flex: 0 0 auto;
 }
@@ -39,6 +39,41 @@ body {
   line-height: 1.2;
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #e8f6ec;
+}
+
+.tab-button {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #2d3a4f;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 9px 8px;
+  cursor: pointer;
+}
+
+.tab-button.active {
+  background: #22ca46;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgb(11 57 22 / 24%);
+}
+
+.tab-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e6ebf2;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -46,9 +81,302 @@ body {
   font-size: 14px;
 }
 
-.error-text {
-  margin: 10px 0 0;
-  color: #ff7f7f;
+.forms-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.accordion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.accordion-card {
+  border: 1px solid #e7edf4;
+  border-radius: 10px;
+  background: #fafcfe;
+}
+
+.accordion-header {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #1f3048;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.accordion-body {
+  padding: 0 10px 10px;
+}
+
+.form-card {
+  border: 1px solid #e7edf4;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fafcfe;
+}
+
+.form-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.field-head {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.2fr auto;
+  gap: 6px;
+  margin-bottom: 5px;
+  color: #7b889d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.form-card-header h3,
+.new-form-box h3,
+.stub-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.hint-mini {
+  color: #7b889d;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.preset-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.custom-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-button {
+  border: 1px solid #d7dee8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #66758d;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.custom-menu {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  min-width: 86px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px;
+  z-index: 20;
+  box-shadow: 0 6px 20px rgb(8 31 66 / 12%);
+}
+
+.custom-menu button {
+  border: 0;
+  background: #f5f9ff;
+  color: #2b3d57;
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+.custom-menu button.danger {
+  background: #fff6f6;
+  color: #bb4046;
+}
+
+.preset-button {
+  border: 1px solid #d5e8da;
+  border-radius: 999px;
+  background: #f3fff6;
+  color: #1a7a33;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.preset-button.active {
+  background: #22ca46;
+  border-color: #22ca46;
+  color: #ffffff;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.2fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.field-row.compact {
+  grid-template-columns: 1.2fr 1fr auto;
+}
+
+.field-input,
+.form-select {
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 12px;
+  color: #203147;
+  background: #ffffff;
+}
+
+.field-label {
+  font-weight: 600;
+}
+
+.mini-button {
+  border: 1px solid #b7d6bf;
+  border-radius: 8px;
+  background: #f3fff6;
+  color: #1f7e36;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mini-button.danger {
+  border-color: #efc7c8;
+  background: #fff6f6;
+  color: #b93e43;
+}
+
+.new-form-box {
+  margin-top: 10px;
+  border: 1px dashed #d4dee9;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.new-form-box .field-row {
+  grid-template-columns: 1.2fr 1fr auto;
+}
+
+.field-row.compact {
+  grid-template-columns: 1.2fr 1fr auto;
+}
+
+.custom-list {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor-box {
+  margin-top: 10px;
+  border: 1px solid #e3e9f2;
+  border-radius: 10px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+@media (max-width: 820px) {
+  .accordion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.action-button {
+  width: 100%;
+  border: 1px solid #18b53a;
+  border-radius: 10px;
+  background: #22ca46;
+  color: #ffffff;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action-button.secondary {
+  border-color: #66c077;
+  background: #ffffff;
+  color: #1b7b34;
+}
+
+.action-button:disabled,
+.mini-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.market-chip {
+  margin: 8px 0 0;
+  display: inline-block;
+  border-radius: 999px;
+  background: #ebf9ef;
+  color: #188236;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.status-text {
+  margin: 9px 0 0;
+  color: #1d5e2d;
   font-size: 12px;
 }
 
+.hint-text {
+  margin: 8px 0 0;
+  color: #59677d;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.align-center {
+  align-self: center;
+}
+
+.error-text {
+  margin: 10px 0 0;
+  color: #cc3f46;
+  font-size: 12px;
+}

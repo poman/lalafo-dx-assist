@@ -26,11 +26,34 @@ export default defineManifest({
   },
   permissions: ['storage', 'activeTab', 'scripting'],
   host_permissions: [
+    'https://lalafo.pl/*',
     'https://*.lalafo.pl/*',
+    'https://lalafo.kg/*',
     'https://*.lalafo.kg/*',
+    'https://lalafo.az/*',
     'https://*.lalafo.az/*',
+    'https://lalafo.rs/*',
     'https://*.lalafo.rs/*',
+    'https://lalafo.gr/*',
     'https://*.lalafo.gr/*',
+  ],
+  content_scripts: [
+    {
+      matches: [
+        'https://lalafo.pl/*',
+        'https://*.lalafo.pl/*',
+        'https://lalafo.kg/*',
+        'https://*.lalafo.kg/*',
+        'https://lalafo.az/*',
+        'https://*.lalafo.az/*',
+        'https://lalafo.rs/*',
+        'https://*.lalafo.rs/*',
+        'https://lalafo.gr/*',
+        'https://*.lalafo.gr/*',
+      ],
+      js: ['src/content/main.ts'],
+      run_at: 'document_idle',
+    },
   ],
 });
 

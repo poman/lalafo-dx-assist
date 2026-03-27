@@ -12,9 +12,52 @@ import {
   QA_DARK_MODE_STORAGE_KEY,
 } from '../shared/constants';
 
-const createApi = (overrides?: Partial<IChromeApi>): IChromeApi => {
+interface IChromeApiOverrides {
+  storage?: {
+    local?: Partial<IChromeApi['storage']['local']>;
+  };
+  tabs?: Partial<IChromeApi['tabs']>;
+  scripting?: Partial<IChromeApi['scripting']>;
+}
+
+const createInjectionResult = <Result>(result: Result): chrome.scripting.InjectionResult<Result> => ({
+  documentId: 'vitest-document',
+  frameId: 0,
+  result,
+});
+
+const createApi = (overrides?: IChromeApiOverrides): IChromeApi => {
   const storageState: Record<string, unknown> = {};
   const markerByTab = new Map<number, boolean>();
+
+  const executeScriptMock: IChromeApi['scripting']['executeScript'] = async <
+    Args extends unknown[],
+    Result,
+  >(
+    injection: chrome.scripting.ScriptInjection<Args, Result>,
+  ): Promise<Array<chrome.scripting.InjectionResult<Result>>> => {
+    const tabId = injection.target.tabId;
+    const args = 'args' in injection ? injection.args : undefined;
+
+    if (!Array.isArray(args) || typeof tabId !== 'number') {
+      return [createInjectionResult(undefined as Result)];
+    }
+
+    if (args.length === 1 && args[0] === QA_DARK_MODE_MARKER_ATTRIBUTE) {
+      return [createInjectionResult((markerByTab.get(tabId) === true) as Result)];
+    }
+
+    if (
+      args.length === 2 &&
+      args[0] === QA_DARK_MODE_MARKER_ATTRIBUTE &&
+      typeof args[1] === 'boolean'
+    ) {
+      markerByTab.set(tabId, args[1]);
+      return [createInjectionResult(undefined as Result)];
+    }
+
+    return [createInjectionResult(undefined as Result)];
+  };
 
   const api: IChromeApi = {
     storage: {
@@ -37,31 +80,7 @@ const createApi = (overrides?: Partial<IChromeApi>): IChromeApi => {
     scripting: {
       insertCSS: vi.fn(async () => {}),
       removeCSS: vi.fn(async () => {}),
-      executeScript: vi.fn(async (injection) => {
-        const tabId = injection.target.tabId;
-
-        if (!Array.isArray(injection.args) || typeof tabId !== 'number') {
-          return [{ result: undefined }];
-        }
-
-        if (
-          injection.args.length === 1 &&
-          injection.args[0] === QA_DARK_MODE_MARKER_ATTRIBUTE
-        ) {
-          return [{ result: markerByTab.get(tabId) === true }];
-        }
-
-        if (
-          injection.args.length === 2 &&
-          injection.args[0] === QA_DARK_MODE_MARKER_ATTRIBUTE &&
-          typeof injection.args[1] === 'boolean'
-        ) {
-          markerByTab.set(tabId, injection.args[1]);
-          return [{ result: undefined }];
-        }
-
-        return [{ result: undefined }];
-      }),
+      executeScript: executeScriptMock,
     },
   };
 
@@ -70,11 +89,20 @@ const createApi = (overrides?: Partial<IChromeApi>): IChromeApi => {
   }
 
   return {
-    ...api,
-    ...overrides,
-    storage: overrides.storage ?? api.storage,
-    tabs: overrides.tabs ?? api.tabs,
-    scripting: overrides.scripting ?? api.scripting,
+    storage: {
+      local: {
+        ...api.storage.local,
+        ...overrides.storage?.local,
+      },
+    },
+    tabs: {
+      ...api.tabs,
+      ...overrides.tabs,
+    },
+    scripting: {
+      ...api.scripting,
+      ...overrides.scripting,
+    },
   };
 };
 
