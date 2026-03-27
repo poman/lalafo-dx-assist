@@ -88,6 +88,7 @@ export type FormFillerResponseMessage = FillFormResponse;
 
 export interface RequestA11yScanMessage {
   type: typeof REQUEST_A11Y_SCAN_TYPE;
+  showHighlights?: boolean;
 }
 
 export interface ToggleHighlightsMessage {

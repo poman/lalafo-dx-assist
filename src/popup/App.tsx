@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { MarketCode } from '../shared/types/region';
+import {
+  A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+  A11Y_RESULTS_BY_TAB_STORAGE_KEY,
+  AUTO_A11Y_SCAN_STORAGE_KEY,
+} from '../shared/constants';
 import { Logo } from './Logo';
 import {
   applyTemplateFieldsToActiveTab,
@@ -28,7 +33,6 @@ import type { A11yViolation } from '../shared/types/messages';
 type PopupTab = 'main' | 'fill-form' | 'accessibility' | 'seo';
 type FillSection = 'login' | 'register' | 'checkout' | 'custom';
 const A11Y_BLINK_ON_CLICK_STORAGE_KEY = 'a11yBlinkOnClick';
-const A11Y_LAST_RESULTS_STORAGE_KEY = 'a11yLastResults';
 const A11Y_LAST_SELECTED_RULE_STORAGE_KEY = 'a11yLastSelectedRuleId';
 type A11yScanFailure = Extract<A11yPopupScanStatus, { kind: 'failure' }>;
 
@@ -68,6 +72,7 @@ type A11yPopupStatus =
 
 export const App = (): ReactElement => {
   const [enabled, setEnabled] = useState(false);
+  const [autoA11yEnabled, setAutoA11yEnabled] = useState(false);
   const [isBusy, setIsBusy] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -87,7 +92,7 @@ export const App = (): ReactElement => {
   const [isA11yBusy, setIsA11yBusy] = useState(false);
   const [a11yStatus, setA11yStatus] = useState<A11yPopupStatus>({ kind: 'idle' });
   const [a11yViolations, setA11yViolations] = useState<A11yViolation[]>([]);
-  const [a11yHighlightsEnabled, setA11yHighlightsEnabled] = useState(true);
+  const [a11yHighlightsEnabled, setA11yHighlightsEnabled] = useState(false);
   const [a11yBlinkOnClick, setA11yBlinkOnClick] = useState(true);
   const [a11ySelectedRuleId, setA11ySelectedRuleId] = useState<string | null>(null);
 
@@ -113,8 +118,13 @@ export const App = (): ReactElement => {
   useEffect(() => {
     const loadState = async () => {
       try {
-        const result = await syncQaDarkModeWithActiveTab();
+        const [result, autoA11yData] = await Promise.all([
+          syncQaDarkModeWithActiveTab(),
+          chrome.storage.local.get([AUTO_A11Y_SCAN_STORAGE_KEY]),
+        ]);
+
         setEnabled(result.enabled);
+        setAutoA11yEnabled(autoA11yData[AUTO_A11Y_SCAN_STORAGE_KEY] === true);
         if (!result.appliedToTab) {
           setErrorText(result.warning ?? 'Could not sync QA Dark Mode on this tab.');
         }
@@ -131,9 +141,12 @@ export const App = (): ReactElement => {
   useEffect(() => {
     const loadA11ySettings = async (): Promise<void> => {
       try {
+        const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTabId = typeof active?.id === 'number' ? String(active.id) : null;
+
         const stored = (await chrome.storage.local.get([
           A11Y_BLINK_ON_CLICK_STORAGE_KEY,
-          A11Y_LAST_RESULTS_STORAGE_KEY,
+          A11Y_RESULTS_BY_TAB_STORAGE_KEY,
           A11Y_LAST_SELECTED_RULE_STORAGE_KEY,
         ])) as Record<string, unknown>;
 
@@ -141,14 +154,20 @@ export const App = (): ReactElement => {
           setA11yBlinkOnClick(stored[A11Y_BLINK_ON_CLICK_STORAGE_KEY] as boolean);
         }
 
-        if (Array.isArray(stored[A11Y_LAST_RESULTS_STORAGE_KEY])) {
-          const restored = stored[A11Y_LAST_RESULTS_STORAGE_KEY].filter(isStoredA11yViolation);
+        const byTab = isObjectRecord(stored[A11Y_RESULTS_BY_TAB_STORAGE_KEY])
+          ? (stored[A11Y_RESULTS_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : null;
 
-          if (restored.length > 0) {
-            setA11yViolations(restored);
-            setA11yStatus({ kind: 'success', count: restored.length });
-            setActiveTab('accessibility');
-          }
+        const activeEntry = activeTabId && byTab ? byTab[activeTabId] : null;
+        const restored =
+          isObjectRecord(activeEntry) && Array.isArray(activeEntry.violations)
+            ? activeEntry.violations.filter(isStoredA11yViolation)
+            : [];
+
+        if (restored.length > 0) {
+          setA11yViolations(restored);
+          setA11yStatus({ kind: 'success', count: restored.length });
+          setActiveTab('accessibility');
         }
 
         if (typeof stored[A11Y_LAST_SELECTED_RULE_STORAGE_KEY] === 'string') {
@@ -159,7 +178,52 @@ export const App = (): ReactElement => {
       }
     };
 
+    const syncA11yFromActiveTabCache = async (): Promise<void> => {
+      try {
+        const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const tabId = typeof active?.id === 'number' ? String(active.id) : null;
+        if (!tabId) {
+          return;
+        }
+
+        const storage = (await chrome.storage.local.get([A11Y_RESULTS_BY_TAB_STORAGE_KEY])) as Record<string, unknown>;
+        const byTab = isObjectRecord(storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY])
+          ? (storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+          : null;
+        const entry = byTab?.[tabId];
+
+        const restored =
+          isObjectRecord(entry) && Array.isArray(entry.violations)
+            ? entry.violations.filter(isStoredA11yViolation)
+            : [];
+
+        if (restored.length > 0) {
+          setA11yViolations(restored);
+          setA11yStatus({ kind: 'success', count: restored.length });
+          return;
+        }
+
+        setA11yViolations([]);
+        setA11yStatus((prev) => (prev.kind === 'success' ? { kind: 'idle' } : prev));
+      } catch {
+        // Ignore transient storage/query failures.
+      }
+    };
+
+    const onStorageChanged = (changes: Record<string, chrome.storage.StorageChange>, areaName: string): void => {
+      if (areaName !== 'local' || !(A11Y_RESULTS_BY_TAB_STORAGE_KEY in changes)) {
+        return;
+      }
+
+      void syncA11yFromActiveTabCache();
+    };
+
     void loadA11ySettings();
+    chrome.storage.onChanged.addListener(onStorageChanged);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(onStorageChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -202,6 +266,17 @@ export const App = (): ReactElement => {
       setErrorText('Could not apply QA Dark Mode on this tab.');
     } finally {
       setIsBusy(false);
+    }
+  };
+
+  const onAutoA11yToggleChange = async (nextEnabled: boolean): Promise<void> => {
+    setAutoA11yEnabled(nextEnabled);
+
+    try {
+      await chrome.storage.local.set({ [AUTO_A11Y_SCAN_STORAGE_KEY]: nextEnabled });
+    } catch {
+      setAutoA11yEnabled(!nextEnabled);
+      setErrorText('Could not save automatic accessibility scan setting.');
     }
   };
 
@@ -366,7 +441,7 @@ export const App = (): ReactElement => {
     setA11yStatus({ kind: 'sent' });
 
     try {
-      const result = await requestA11yScanFromActiveTab();
+      const result = await requestA11yScanFromActiveTab({ showHighlights: a11yHighlightsEnabled });
 
       if (result.kind === 'restricted-tab') {
         setA11yViolations([]);
@@ -382,12 +457,10 @@ export const App = (): ReactElement => {
 
       setA11yViolations(result.violations);
       setA11yStatus({ kind: 'success', count: result.violations.length });
-      setA11yHighlightsEnabled(true);
       setA11ySelectedRuleId(result.violations[0]?.id ?? null);
       setActiveTab('accessibility');
 
       await chrome.storage.local.set({
-        [A11Y_LAST_RESULTS_STORAGE_KEY]: result.violations,
         [A11Y_LAST_SELECTED_RULE_STORAGE_KEY]: result.violations[0]?.id ?? null,
       });
     } finally {
@@ -399,13 +472,31 @@ export const App = (): ReactElement => {
     setIsA11yBusy(true);
 
     try {
-      const applied = await toggleA11yHighlightsOnActiveTab(enabled);
+      if (enabled) {
+        const scanResult = await requestA11yScanFromActiveTab({ showHighlights: true });
+        if (scanResult.kind === 'success') {
+          setA11yViolations(scanResult.violations);
+          setA11yStatus({ kind: 'success', count: scanResult.violations.length });
+          setA11yHighlightsEnabled(true);
+          return;
+        }
+
+        if (scanResult.kind === 'restricted-tab') {
+          setA11yStatus({ kind: 'restricted-tab' });
+          return;
+        }
+
+        setA11yStatus({ kind: 'failure', error: scanResult.error, detail: scanResult.detail });
+        return;
+      }
+
+      const applied = await toggleA11yHighlightsOnActiveTab(false);
       if (!applied) {
         setA11yStatus({ kind: 'restricted-tab' });
         return;
       }
 
-      setA11yHighlightsEnabled(enabled);
+      setA11yHighlightsEnabled(false);
     } finally {
       setIsA11yBusy(false);
     }
@@ -461,7 +552,35 @@ export const App = (): ReactElement => {
     setA11yStatus({ kind: 'idle' });
 
     try {
-      await chrome.storage.local.remove([A11Y_LAST_RESULTS_STORAGE_KEY, A11Y_LAST_SELECTED_RULE_STORAGE_KEY]);
+      const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabId = typeof active?.id === 'number' ? String(active.id) : null;
+
+      if (!tabId) {
+        await chrome.storage.local.remove([A11Y_LAST_SELECTED_RULE_STORAGE_KEY]);
+        return;
+      }
+
+      const storage = (await chrome.storage.local.get([
+        A11Y_RESULTS_BY_TAB_STORAGE_KEY,
+        A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY,
+      ])) as Record<string, unknown>;
+
+      const byTab = isObjectRecord(storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY])
+        ? (storage[A11Y_RESULTS_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+        : {};
+
+      const countByTab = isObjectRecord(storage[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY])
+        ? (storage[A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY] as Record<string, unknown>)
+        : {};
+
+      delete byTab[tabId];
+      delete countByTab[tabId];
+
+      await chrome.storage.local.set({
+        [A11Y_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
+        [A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
+        [A11Y_LAST_SELECTED_RULE_STORAGE_KEY]: null,
+      });
     } catch {
       // Ignore clear errors.
     }
@@ -740,6 +859,17 @@ export const App = (): ReactElement => {
               }}
             />
             <span>Enable QA Dark Mode</span>
+          </label>
+
+          <label className="toggle-row">
+            <input
+              type="checkbox"
+              checked={autoA11yEnabled}
+              onChange={(event) => {
+                void onAutoA11yToggleChange(event.target.checked);
+              }}
+            />
+            <span>Enable auto Accessibility checks on Lalafo page navigation</span>
           </label>
           {errorText ? <p className="error-text">{errorText}</p> : null}
         </section>

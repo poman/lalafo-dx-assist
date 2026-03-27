@@ -41,7 +41,10 @@ const isA11yScanRequest = (message: unknown): message is RequestA11yScanMessage 
     return false;
   }
 
-  return message.type === REQUEST_A11Y_SCAN_TYPE;
+  return (
+    message.type === REQUEST_A11Y_SCAN_TYPE &&
+    (message.showHighlights === undefined || typeof message.showHighlights === 'boolean')
+  );
 };
 
 const isFocusRuleMessage = (message: unknown): message is FocusA11yRuleMessage => {
@@ -370,7 +373,11 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   void (async (): Promise<void> => {
     try {
       const violations = await runA11yScan();
-      highlighter.drawHighlights(violations);
+      if (message.showHighlights === true) {
+        highlighter.drawHighlights(violations);
+      } else {
+        highlighter.clearAll();
+      }
       const serializedViolations = sanitizeViolations(violations);
 
       const response: RequestA11yScanResponse = {

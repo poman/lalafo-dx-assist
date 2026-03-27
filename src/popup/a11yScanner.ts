@@ -289,14 +289,19 @@ const sendMessageWithBootstrap = async (
   }
 };
 
-export const requestA11yScanFromActiveTab = async (): Promise<A11yPopupScanStatus> => {
+export const requestA11yScanFromActiveTab = async (
+  options?: { showHighlights?: boolean },
+): Promise<A11yPopupScanStatus> => {
   try {
     const activeTab = await getActiveTab();
     if (!activeTab || typeof activeTab.id !== 'number' || !isScriptableUrl(activeTab.url)) {
       return { kind: 'restricted-tab' };
     }
 
-    const request: RequestA11yScanMessage = { type: REQUEST_A11Y_SCAN_TYPE };
+    const request: RequestA11yScanMessage = {
+      type: REQUEST_A11Y_SCAN_TYPE,
+      showHighlights: options?.showHighlights,
+    };
     const sent = await sendMessageWithBootstrap(activeTab.id, request);
     if (!sent.ok) {
       if (sent.error === 'RESTRICTED_TAB') {
