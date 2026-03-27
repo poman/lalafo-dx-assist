@@ -390,6 +390,144 @@ body {
   margin-top: 10px;
 }
 
+.a11y-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.a11y-config-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #324760;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.a11y-config-stack {
+  margin-top: 8px;
+  display: grid;
+  gap: 2px;
+}
+
+.a11y-config-stack .a11y-config-row {
+  margin-top: 0;
+}
+
+.a11y-results {
+  margin-top: 10px;
+  border: 1px solid #e3e9f2;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 8px;
+}
+
+.a11y-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.a11y-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.a11y-item {
+  display: grid;
+  gap: 6px;
+  gap: 6px;
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.a11y-item:hover {
+  border-color: #b8d0ea;
+  background: #f7fbff;
+}
+
+.a11y-item.active {
+  border-color: #7ab4e6;
+  background: #eef7ff;
+}
+
+.a11y-item-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.a11y-impact {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 6px;
+  text-transform: uppercase;
+}
+
+.a11y-impact.critical {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.a11y-impact.serious {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.a11y-impact.moderate {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.a11y-impact.minor {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.a11y-rule {
+  color: #21324a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.a11y-count {
+  color: #5a6880;
+  font-size: 11px;
+}
+
+.a11y-help-text,
+.a11y-description-text,
+.a11y-summary-text {
+  margin: 0;
+  color: #41546e;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.a11y-link {
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.a11y-link:hover {
+  text-decoration: underline;
+}
+
 .action-button {
   width: 100%;
   border: 1px solid #18b53a;

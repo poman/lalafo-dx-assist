@@ -16,10 +16,55 @@ import {
   type ITemplateForm,
   type TemplateType,
 } from './formTemplates';
+import {
+  focusA11yRuleOnActiveTab,
+  requestA11yScanFromActiveTab,
+  toggleA11yHighlightsOnActiveTab,
+  type A11yPopupScanStatus,
+} from './a11yScanner';
 import { syncQaDarkModeWithActiveTab, toggleQaDarkMode } from './qaDarkMode';
+import type { A11yViolation } from '../shared/types/messages';
 
 type PopupTab = 'main' | 'fill-form' | 'accessibility' | 'seo';
 type FillSection = 'login' | 'register' | 'checkout' | 'custom';
+const A11Y_BLINK_ON_CLICK_STORAGE_KEY = 'a11yBlinkOnClick';
+const A11Y_LAST_RESULTS_STORAGE_KEY = 'a11yLastResults';
+const A11Y_LAST_SELECTED_RULE_STORAGE_KEY = 'a11yLastSelectedRuleId';
+type A11yScanFailure = Extract<A11yPopupScanStatus, { kind: 'failure' }>;
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isStoredA11yViolation = (value: unknown): value is A11yViolation => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.help !== 'string' ||
+    typeof value.description !== 'string' ||
+    typeof value.helpUrl !== 'string' ||
+    !Array.isArray(value.nodes)
+  ) {
+    return false;
+  }
+
+  return value.nodes.every(
+    (node) =>
+      isObjectRecord(node) &&
+      Array.isArray(node.target) &&
+      (node.summary === undefined || typeof node.summary === 'string') &&
+      node.target.every((selector) => typeof selector === 'string'),
+  );
+};
+
+type A11yPopupStatus =
+  | { kind: 'idle' }
+  | { kind: 'sent' }
+  | { kind: 'success'; count: number }
+  | { kind: 'failure'; error: A11yScanFailure['error']; detail?: A11yScanFailure['detail'] }
+  | { kind: 'restricted-tab' };
 
 export const App = (): ReactElement => {
   const [enabled, setEnabled] = useState(false);
@@ -39,6 +84,12 @@ export const App = (): ReactElement => {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<FillSection>('login');
+  const [isA11yBusy, setIsA11yBusy] = useState(false);
+  const [a11yStatus, setA11yStatus] = useState<A11yPopupStatus>({ kind: 'idle' });
+  const [a11yViolations, setA11yViolations] = useState<A11yViolation[]>([]);
+  const [a11yHighlightsEnabled, setA11yHighlightsEnabled] = useState(true);
+  const [a11yBlinkOnClick, setA11yBlinkOnClick] = useState(true);
+  const [a11ySelectedRuleId, setA11ySelectedRuleId] = useState<string | null>(null);
 
   const getAutoFillStatusText = (status: AutoFillPopupStatus): string => {
     if (status.kind === 'sent') return 'Status: sent';
@@ -49,6 +100,14 @@ export const App = (): ReactElement => {
         : `Status: success (${status.detectedFormKind})`;
     }
     return `Status: failure (${status.error})`;
+  };
+
+  const getA11yStatusText = (status: A11yPopupStatus): string | null => {
+    if (status.kind === 'idle') return null;
+    if (status.kind === 'sent') return 'Status: scanning...';
+    if (status.kind === 'restricted-tab') return 'Status: open a regular website tab (http/https) first.';
+    if (status.kind === 'success') return `Status: done (${status.count} issues)`;
+    return status.detail ? `Status: failed (${status.error}) - ${status.detail}` : `Status: failed (${status.error})`;
   };
 
   useEffect(() => {
@@ -67,6 +126,40 @@ export const App = (): ReactElement => {
     };
 
     void loadState();
+  }, []);
+
+  useEffect(() => {
+    const loadA11ySettings = async (): Promise<void> => {
+      try {
+        const stored = (await chrome.storage.local.get([
+          A11Y_BLINK_ON_CLICK_STORAGE_KEY,
+          A11Y_LAST_RESULTS_STORAGE_KEY,
+          A11Y_LAST_SELECTED_RULE_STORAGE_KEY,
+        ])) as Record<string, unknown>;
+
+        if (typeof stored[A11Y_BLINK_ON_CLICK_STORAGE_KEY] === 'boolean') {
+          setA11yBlinkOnClick(stored[A11Y_BLINK_ON_CLICK_STORAGE_KEY] as boolean);
+        }
+
+        if (Array.isArray(stored[A11Y_LAST_RESULTS_STORAGE_KEY])) {
+          const restored = stored[A11Y_LAST_RESULTS_STORAGE_KEY].filter(isStoredA11yViolation);
+
+          if (restored.length > 0) {
+            setA11yViolations(restored);
+            setA11yStatus({ kind: 'success', count: restored.length });
+            setActiveTab('accessibility');
+          }
+        }
+
+        if (typeof stored[A11Y_LAST_SELECTED_RULE_STORAGE_KEY] === 'string') {
+          setA11ySelectedRuleId(stored[A11Y_LAST_SELECTED_RULE_STORAGE_KEY] as string);
+        }
+      } catch {
+        // Keep defaults when storage is unavailable.
+      }
+    };
+
+    void loadA11ySettings();
   }, []);
 
   useEffect(() => {
@@ -265,6 +358,112 @@ export const App = (): ReactElement => {
       setMarketStatus('Preset configuration saved.');
     } catch {
       setMarketStatus('Failed to save preset configuration.');
+    }
+  };
+
+  const runAccessibilityScan = async (): Promise<void> => {
+    setIsA11yBusy(true);
+    setA11yStatus({ kind: 'sent' });
+
+    try {
+      const result = await requestA11yScanFromActiveTab();
+
+      if (result.kind === 'restricted-tab') {
+        setA11yViolations([]);
+        setA11yStatus({ kind: 'restricted-tab' });
+        return;
+      }
+
+      if (result.kind === 'failure') {
+        setA11yViolations([]);
+        setA11yStatus({ kind: 'failure', error: result.error, detail: result.detail });
+        return;
+      }
+
+      setA11yViolations(result.violations);
+      setA11yStatus({ kind: 'success', count: result.violations.length });
+      setA11yHighlightsEnabled(true);
+      setA11ySelectedRuleId(result.violations[0]?.id ?? null);
+      setActiveTab('accessibility');
+
+      await chrome.storage.local.set({
+        [A11Y_LAST_RESULTS_STORAGE_KEY]: result.violations,
+        [A11Y_LAST_SELECTED_RULE_STORAGE_KEY]: result.violations[0]?.id ?? null,
+      });
+    } finally {
+      setIsA11yBusy(false);
+    }
+  };
+
+  const toggleAccessibilityHighlights = async (enabled: boolean): Promise<void> => {
+    setIsA11yBusy(true);
+
+    try {
+      const applied = await toggleA11yHighlightsOnActiveTab(enabled);
+      if (!applied) {
+        setA11yStatus({ kind: 'restricted-tab' });
+        return;
+      }
+
+      setA11yHighlightsEnabled(enabled);
+    } finally {
+      setIsA11yBusy(false);
+    }
+  };
+
+  const toggleA11yBlinkConfig = async (enabled: boolean): Promise<void> => {
+    setA11yBlinkOnClick(enabled);
+    try {
+      await chrome.storage.local.set({ [A11Y_BLINK_ON_CLICK_STORAGE_KEY]: enabled });
+    } catch {
+      // Keep in-memory value even if storage write fails.
+    }
+  };
+
+  const focusViolationOnPage = async (violation: A11yViolation): Promise<void> => {
+    setA11ySelectedRuleId(violation.id);
+
+    try {
+      await chrome.storage.local.set({ [A11Y_LAST_SELECTED_RULE_STORAGE_KEY]: violation.id });
+    } catch {
+      // Ignore persistence errors and continue focusing.
+    }
+
+    if (!a11yBlinkOnClick) {
+      return;
+    }
+
+    const focused = await focusA11yRuleOnActiveTab(violation.id);
+    if (!focused) {
+      setA11yStatus({ kind: 'failure', error: 'SEND_MESSAGE_FAILED', detail: 'Could not focus selected rule on page.' });
+    }
+  };
+
+  const focusAdjacentViolation = async (offset: 1 | -1): Promise<void> => {
+    if (a11yViolations.length === 0) {
+      return;
+    }
+
+    const currentIndex = a11ySelectedRuleId
+      ? a11yViolations.findIndex((item) => item.id === a11ySelectedRuleId)
+      : -1;
+
+    const startIndex = currentIndex < 0 ? (offset === 1 ? 0 : a11yViolations.length - 1) : currentIndex;
+    const nextIndex = (startIndex + offset + a11yViolations.length) % a11yViolations.length;
+    const nextViolation = a11yViolations[nextIndex];
+
+    await focusViolationOnPage(nextViolation);
+  };
+
+  const clearSavedA11yResults = async (): Promise<void> => {
+    setA11yViolations([]);
+    setA11ySelectedRuleId(null);
+    setA11yStatus({ kind: 'idle' });
+
+    try {
+      await chrome.storage.local.remove([A11Y_LAST_RESULTS_STORAGE_KEY, A11Y_LAST_SELECTED_RULE_STORAGE_KEY]);
+    } catch {
+      // Ignore clear errors.
     }
   };
 
@@ -573,10 +772,119 @@ export const App = (): ReactElement => {
 
       {activeTab === 'accessibility' ? (
         <section className="tab-panel" role="tabpanel" aria-label="Accessibility">
-          <h3 className="stub-title">Accessibility (coming soon)</h3>
-          <p className="hint-text">
-            Planned: WCAG checks, contrast audit, missing alt attributes, and focus order validator.
-          </p>
+          <h3 className="stub-title">WCAG Accessibility Scanner</h3>
+          <p className="hint-text">Run axe-core checks and highlight detected issues directly on the page.</p>
+
+          <div className="a11y-actions">
+            <button
+              type="button"
+              className="action-button"
+              disabled={isA11yBusy}
+              onClick={() => {
+                void runAccessibilityScan();
+              }}
+            >
+              Run scan
+            </button>
+          </div>
+
+          <div className="a11y-actions">
+            <button
+              type="button"
+              className="action-button secondary"
+              disabled={isA11yBusy || a11yViolations.length === 0}
+              onClick={() => {
+                void focusAdjacentViolation(-1);
+              }}
+            >
+              Previous issue
+            </button>
+            <button
+              type="button"
+              className="action-button secondary"
+              disabled={isA11yBusy || a11yViolations.length === 0}
+              onClick={() => {
+                void focusAdjacentViolation(1);
+              }}
+            >
+              Next issue
+            </button>
+          </div>
+
+          <div className="a11y-config-stack">
+            <label className="a11y-config-row">
+              <input
+                type="checkbox"
+                checked={!a11yHighlightsEnabled}
+                disabled={isA11yBusy}
+                onChange={(event) => {
+                  void toggleAccessibilityHighlights(!event.target.checked);
+                }}
+              />
+              <span>Hide highlights</span>
+            </label>
+
+            <label className="a11y-config-row">
+              <input
+                type="checkbox"
+                checked={a11yBlinkOnClick}
+                onChange={(event) => {
+                  void toggleA11yBlinkConfig(event.target.checked);
+                }}
+              />
+              <span>Blink and scroll to rule on click</span>
+            </label>
+          </div>
+
+          {getA11yStatusText(a11yStatus) ? <p className="status-text">{getA11yStatusText(a11yStatus)}</p> : null}
+
+          {a11yViolations.length > 0 ? (
+            <div className="a11y-results">
+              <div className="a11y-results-head">
+                <p className="hint-mini">Found rules: {a11yViolations.length}</p>
+                <button
+                  type="button"
+                  className="mini-button"
+                  onClick={() => {
+                    void clearSavedA11yResults();
+                  }}
+                >
+                  Clear saved
+                </button>
+              </div>
+              <ul className="a11y-list">
+                {a11yViolations.map((violation) => (
+                  <li
+                    key={violation.id}
+                    className={`a11y-item ${a11ySelectedRuleId === violation.id ? 'active' : ''}`}
+                    onClick={() => {
+                      void focusViolationOnPage(violation);
+                    }}
+                  >
+                    <div className="a11y-item-head">
+                      <span className={`a11y-impact ${violation.impact ?? 'minor'}`}>{violation.impact ?? 'minor'}</span>
+                      <span className="a11y-rule">{violation.id}</span>
+                      <span className="a11y-count">Nodes: {violation.nodes.length}</span>
+                    </div>
+                    <p className="a11y-help-text">{violation.help}</p>
+                    <p className="a11y-description-text">{violation.description}</p>
+                    <a
+                      className="a11y-link"
+                      href={violation.helpUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Open official rule docs
+                    </a>
+                    {violation.nodes[0]?.summary ? (
+                      <p className="a11y-summary-text">{violation.nodes[0].summary}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

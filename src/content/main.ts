@@ -6,6 +6,7 @@ import {
 } from '../shared/types/messages';
 import { SUPPORTED_MARKETS } from '../shared/types/region';
 import { fillDetectedForm } from './formFiller';
+import './a11yScanner';
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
