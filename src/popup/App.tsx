@@ -143,6 +143,7 @@ export const App = (): ReactElement => {
   const [seoTabId, setSeoTabId] = useState<number | null>(null);
   const [a11yTabIssueCount, setA11yTabIssueCount] = useState(0);
   const [seoTabIssueCount, setSeoTabIssueCount] = useState(0);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const seoIssues = useMemo(() => {
     if (!seoReport) {
@@ -1060,6 +1061,14 @@ export const App = (): ReactElement => {
           <Logo />
         </div>
         <h1 className="popup-title">Lalafo DX Assist</h1>
+        <button
+          type="button"
+          className="header-info-button"
+          aria-label="Open About"
+          onClick={() => setIsAboutOpen(true)}
+        >
+          <img src="/icons/fi_info.svg" alt="" aria-hidden="true" />
+        </button>
       </div>
 
       <div className="tabs" role="tablist" aria-label="Feature tabs">
@@ -1419,6 +1428,59 @@ export const App = (): ReactElement => {
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {isAboutOpen ? (
+        <div
+          className="about-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="About Lalafo DX Assist"
+          onClick={() => setIsAboutOpen(false)}
+        >
+          <div
+            className="about-modal"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <div className="about-header-row">
+              <h3 className="about-title">About</h3>
+              <button
+                type="button"
+                className="mini-button"
+                onClick={() => setIsAboutOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <p className="about-text">
+              Lalafo DX Assist helps QA and developers with dark mode checks,
+              accessibility scanning, SEO diagnostics, and fast form filling on
+              supported Lalafo markets.
+            </p>
+            <p className="about-text">
+              Repository:{' '}
+              <a
+                href="https://github.com/poman/lalafo-dx-assist"
+                target="_blank"
+                rel="noreferrer"
+              >
+                github.com/poman/lalafo-dx-assist
+              </a>
+            </p>
+            <p className="about-text">
+              Developed by:{' '}
+              <a
+                href="https://linkedin.com/in/romankukla"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Roman Kukla
+              </a>
+            </p>
+          </div>
+        </div>
       ) : null}
     </main>
   );
