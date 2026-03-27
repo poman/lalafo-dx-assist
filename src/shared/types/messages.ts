@@ -6,6 +6,10 @@ export const REQUEST_A11Y_SCAN_TYPE = 'REQUEST_A11Y_SCAN' as const;
 export const A11Y_SCAN_RESPONSE_TYPE = 'A11Y_SCAN_RESULT' as const;
 export const TOGGLE_HIGHLIGHTS_TYPE = 'TOGGLE_HIGHLIGHTS' as const;
 export const FOCUS_A11Y_RULE_TYPE = 'FOCUS_A11Y_RULE' as const;
+export const SEO_REPORT_UPDATE_TYPE = 'SEO_REPORT_UPDATE' as const;
+export const WEB_VITALS_UPDATE_TYPE = 'WEB_VITALS_UPDATE' as const;
+export const REQUEST_SEO_REPORT_TYPE = 'REQUEST_SEO_REPORT' as const;
+export const SEO_REPORT_RESPONSE_TYPE = 'SEO_REPORT_RESPONSE' as const;
 
 export type FormKind = 'login' | 'registration' | 'order' | 'unknown';
 export type A11yImpact = 'minor' | 'moderate' | 'serious' | 'critical' | null;
@@ -99,6 +103,70 @@ export interface ToggleHighlightsMessage {
 export interface FocusA11yRuleMessage {
   type: typeof FOCUS_A11Y_RULE_TYPE;
   ruleId: string;
+}
+
+export interface HeadingNode {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  text: string;
+}
+
+export interface ParsedMetaTags {
+  title: string;
+  titleLength: number;
+  description: string;
+  canonical: string;
+  url?: string;
+  language?: string;
+  robots?: string;
+  viewport?: string;
+  charset?: string;
+  h1Count: number;
+  hasSingleH1: boolean;
+  imageCount?: number;
+  imageMissingAltCount?: number;
+  openGraph: {
+    title: string;
+    description: string;
+    image: string;
+    url?: string;
+    type?: string;
+  };
+  twitter?: {
+    card: string;
+    title: string;
+    description: string;
+    image: string;
+  };
+}
+
+export interface SeoReportPayload {
+  meta: ParsedMetaTags;
+  headings: HeadingNode[];
+  vitals: {
+    lcp?: number;
+    cls?: number;
+    inp?: number;
+  };
+}
+
+export interface SeoReportUpdateMessage {
+  type: typeof SEO_REPORT_UPDATE_TYPE;
+  payload: SeoReportPayload;
+}
+
+export interface WebVitalsUpdateMessage {
+  type: typeof WEB_VITALS_UPDATE_TYPE;
+  metric: 'lcp' | 'cls' | 'inp' | 'fid';
+  value: number;
+}
+
+export interface RequestSeoReportMessage {
+  type: typeof REQUEST_SEO_REPORT_TYPE;
+}
+
+export interface SeoReportResponse {
+  type: typeof SEO_REPORT_RESPONSE_TYPE;
+  payload: SeoReportPayload;
 }
 
 export interface RequestA11yScanSuccessResponse {

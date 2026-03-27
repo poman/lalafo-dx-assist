@@ -27,8 +27,17 @@ import {
   toggleA11yHighlightsOnActiveTab,
   type A11yPopupScanStatus,
 } from './a11yScanner';
+import { requestSeoReportFromActiveTab } from './seoScanner';
+import { analyzeSeoReport } from './seoAnalyzer';
 import { syncQaDarkModeWithActiveTab, toggleQaDarkMode } from './qaDarkMode';
-import type { A11yViolation } from '../shared/types/messages';
+import {
+  SEO_REPORT_UPDATE_TYPE,
+  WEB_VITALS_UPDATE_TYPE,
+  type A11yViolation,
+  type SeoReportPayload,
+  type SeoReportUpdateMessage,
+  type WebVitalsUpdateMessage,
+} from '../shared/types/messages';
 
 type PopupTab = 'main' | 'fill-form' | 'accessibility' | 'seo';
 type FillSection = 'login' | 'register' | 'checkout' | 'custom';
@@ -60,6 +69,27 @@ const isStoredA11yViolation = (value: unknown): value is A11yViolation => {
       Array.isArray(node.target) &&
       (node.summary === undefined || typeof node.summary === 'string') &&
       node.target.every((selector) => typeof selector === 'string'),
+  );
+};
+
+const isSeoReportUpdateMessage = (value: unknown): value is SeoReportUpdateMessage => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return value.type === SEO_REPORT_UPDATE_TYPE && isObjectRecord(value.payload);
+};
+
+const isWebVitalsUpdateMessage = (value: unknown): value is WebVitalsUpdateMessage => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  const metrics = ['lcp', 'cls', 'inp', 'fid'] as const;
+  return (
+    value.type === WEB_VITALS_UPDATE_TYPE &&
+    metrics.includes(value.metric as (typeof metrics)[number]) &&
+    typeof value.value === 'number'
   );
 };
 
@@ -95,6 +125,18 @@ export const App = (): ReactElement => {
   const [a11yHighlightsEnabled, setA11yHighlightsEnabled] = useState(false);
   const [a11yBlinkOnClick, setA11yBlinkOnClick] = useState(true);
   const [a11ySelectedRuleId, setA11ySelectedRuleId] = useState<string | null>(null);
+  const [isSeoBusy, setIsSeoBusy] = useState(false);
+  const [seoStatus, setSeoStatus] = useState<string | null>(null);
+  const [seoReport, setSeoReport] = useState<SeoReportPayload | null>(null);
+  const [seoTabId, setSeoTabId] = useState<number | null>(null);
+
+  const seoIssues = useMemo(() => {
+    if (!seoReport) {
+      return [];
+    }
+
+    return analyzeSeoReport(seoReport);
+  }, [seoReport]);
 
   const getAutoFillStatusText = (status: AutoFillPopupStatus): string => {
     if (status.kind === 'sent') return 'Status: sent';
@@ -113,6 +155,29 @@ export const App = (): ReactElement => {
     if (status.kind === 'restricted-tab') return 'Status: open a regular website tab (http/https) first.';
     if (status.kind === 'success') return `Status: done (${status.count} issues)`;
     return status.detail ? `Status: failed (${status.error}) - ${status.detail}` : `Status: failed (${status.error})`;
+  };
+
+  const loadSeoSnapshot = async (): Promise<void> => {
+    setIsSeoBusy(true);
+    setSeoStatus('Status: loading SEO report...');
+
+    try {
+      const result = await requestSeoReportFromActiveTab();
+      if (result.kind === 'success') {
+        setSeoTabId(result.tabId);
+        setSeoReport(result.report);
+        setSeoStatus('Status: live SEO report connected.');
+        return;
+      }
+
+      if (result.error === 'RESTRICTED_TAB') {
+        setSeoStatus('Status: open a regular website tab (http/https) first.');
+      } else {
+        setSeoStatus(`Status: failed (${result.error})`);
+      }
+    } finally {
+      setIsSeoBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -250,6 +315,54 @@ export const App = (): ReactElement => {
 
     void loadFillFormState();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'seo') {
+      return;
+    }
+
+    void loadSeoSnapshot();
+
+    const onRuntimeMessage = (
+      message: unknown,
+      sender: chrome.runtime.MessageSender,
+    ): void => {
+      if (typeof sender.tab?.id === 'number' && seoTabId !== null && sender.tab.id !== seoTabId) {
+        return;
+      }
+
+      if (isSeoReportUpdateMessage(message)) {
+        if (typeof sender.tab?.id === 'number') {
+          setSeoTabId(sender.tab.id);
+        }
+
+        setSeoReport(message.payload);
+        setSeoStatus('Status: live SEO report updated.');
+        return;
+      }
+
+      if (isWebVitalsUpdateMessage(message)) {
+        setSeoReport((prev) => {
+          if (!prev) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            vitals: {
+              ...prev.vitals,
+              [message.metric]: message.value,
+            },
+          };
+        });
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+    };
+  }, [activeTab, seoTabId]);
 
   const onToggleChange = async (nextEnabled: boolean): Promise<void> => {
     setErrorText(null);
@@ -1020,10 +1133,108 @@ export const App = (): ReactElement => {
 
       {activeTab === 'seo' ? (
         <section className="tab-panel" role="tabpanel" aria-label="SEO">
-          <h3 className="stub-title">SEO (coming soon)</h3>
-          <p className="hint-text">
-            Planned: meta tags audit, structured data checks, heading hierarchy and indexability hints.
-          </p>
+          <h3 className="stub-title">SEO Scanner (Live)</h3>
+          <p className="hint-text">Live on-page meta and web-vitals stream from the active tab.</p>
+
+          <div className="seo-actions">
+            <button
+              type="button"
+              className="action-button secondary"
+              disabled={isSeoBusy}
+              onClick={() => {
+                void loadSeoSnapshot();
+              }}
+            >
+              Refresh SEO report
+            </button>
+          </div>
+
+          {seoStatus ? <p className="status-text">{seoStatus}</p> : null}
+
+          {seoReport ? (
+            <div className="seo-results">
+              <div className="seo-card">
+                <p className="seo-label">SEO Analyzer</p>
+                <p className="seo-value">Issues: {seoIssues.length}</p>
+                <ul className="seo-issues-list">
+                  {seoIssues.map((issue) => (
+                    <li key={issue.id} className={`seo-issue ${issue.severity}`}>
+                      <p className="seo-issue-title">{issue.title}</p>
+                      <p className="seo-issue-details">{issue.details}</p>
+                      <p className="seo-issue-recommendation">Fix: {issue.recommendation}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="seo-grid">
+                <div className="seo-card">
+                  <p className="seo-label">Title</p>
+                  <p className="seo-value">{seoReport.meta.title || '-'}</p>
+                  <p className="seo-hint">Length: {seoReport.meta.titleLength}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">Description</p>
+                  <p className="seo-value">{seoReport.meta.description || '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">Canonical</p>
+                  <p className="seo-value">{seoReport.meta.canonical || '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">H1</p>
+                  <p className="seo-value">{seoReport.meta.h1Count}</p>
+                  <p className="seo-hint">Single H1: {seoReport.meta.hasSingleH1 ? 'yes' : 'no'}</p>
+                </div>
+              </div>
+
+              <div className="seo-grid">
+                <div className="seo-card">
+                  <p className="seo-label">OG Title</p>
+                  <p className="seo-value">{seoReport.meta.openGraph.title || '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">OG Description</p>
+                  <p className="seo-value">{seoReport.meta.openGraph.description || '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">OG Image</p>
+                  <p className="seo-value">{seoReport.meta.openGraph.image || '-'}</p>
+                </div>
+              </div>
+
+              <div className="seo-grid">
+                <div className="seo-card">
+                  <p className="seo-label">LCP</p>
+                  <p className="seo-value">{seoReport.vitals.lcp?.toFixed(2) ?? '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">CLS</p>
+                  <p className="seo-value">{seoReport.vitals.cls?.toFixed(4) ?? '-'}</p>
+                </div>
+                <div className="seo-card">
+                  <p className="seo-label">INP</p>
+                  <p className="seo-value">{seoReport.vitals.inp?.toFixed(2) ?? '-'}</p>
+                </div>
+              </div>
+
+              <div className="seo-card">
+                <p className="seo-label">Headings ({seoReport.headings.length})</p>
+                {seoReport.headings.length > 0 ? (
+                  <ul className="seo-headings-list">
+                    {seoReport.headings.map((heading, index) => (
+                      <li key={`${heading.level}-${index}`}>
+                        <span className="seo-heading-level">H{heading.level}</span>
+                        <span className="seo-heading-text">{heading.text || '(empty)'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="seo-value">No headings found.</p>
+                )}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </main>
