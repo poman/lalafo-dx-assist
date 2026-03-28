@@ -144,6 +144,9 @@ export const App = (): ReactElement => {
   const [a11yTabIssueCount, setA11yTabIssueCount] = useState(0);
   const [seoTabIssueCount, setSeoTabIssueCount] = useState(0);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState('');
+  const [qrCopyStatus, setQrCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const seoIssues = useMemo(() => {
     if (!seoReport) {
@@ -170,6 +173,34 @@ export const App = (): ReactElement => {
     if (status.kind === 'restricted-tab') return 'Status: open a regular website tab (http/https) first.';
     if (status.kind === 'success') return `Status: done (${status.count} issues)`;
     return status.detail ? `Status: failed (${status.error}) - ${status.detail}` : `Status: failed (${status.error})`;
+  };
+
+  const openQrModal = async (): Promise<void> => {
+    setQrCopyStatus('idle');
+
+    try {
+      const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      setQrUrl(typeof activeTabs[0]?.url === 'string' ? activeTabs[0].url : '');
+    } catch {
+      setQrUrl('');
+    }
+
+    setIsQrOpen(true);
+  };
+
+  const copyQrUrl = async (): Promise<void> => {
+    if (!qrUrl) {
+      return;
+    }
+
+    try {
+      await window.navigator.clipboard.writeText(qrUrl);
+      setQrCopyStatus('copied');
+      window.setTimeout(() => setQrCopyStatus('idle'), 2000);
+    } catch {
+      setQrCopyStatus('error');
+      window.setTimeout(() => setQrCopyStatus('idle'), 2500);
+    }
   };
 
   const loadSeoSnapshot = async (): Promise<void> => {
@@ -1063,7 +1094,17 @@ export const App = (): ReactElement => {
         <h1 className="popup-title">Lalafo DX Assist</h1>
         <button
           type="button"
-          className="header-info-button"
+          className="header-icon-button header-icon-button--push-right"
+          aria-label="Open page QR code"
+          onClick={() => {
+            void openQrModal();
+          }}
+        >
+          <img src="/icons/QR.svg" alt="" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="header-icon-button"
           aria-label="Open About"
           onClick={() => setIsAboutOpen(true)}
         >
@@ -1479,6 +1520,62 @@ export const App = (): ReactElement => {
                 Roman Kukla
               </a>
             </p>
+          </div>
+        </div>
+      ) : null}
+
+      {isQrOpen ? (
+        <div
+          className="about-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="QR code for active tab"
+          onClick={() => setIsQrOpen(false)}
+        >
+          <div
+            className="about-modal qr-modal"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <div className="about-header-row">
+              <h3 className="about-title">QR code</h3>
+              <button
+                type="button"
+                className="mini-button"
+                onClick={() => setIsQrOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            {qrUrl ? (
+              <>
+                <div className="qr-preview-wrap" aria-hidden="true">
+                  <img
+                    className="qr-preview"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`}
+                    alt=""
+                  />
+                </div>
+                <p className="about-text qr-url">{qrUrl}</p>
+                <button
+                  type="button"
+                  className="mini-button"
+                  onClick={() => {
+                    void copyQrUrl();
+                  }}
+                >
+                  {qrCopyStatus === 'copied'
+                    ? 'Copied'
+                    : qrCopyStatus === 'error'
+                      ? 'Copy failed'
+                      : 'Copy URL'}
+                </button>
+              </>
+            ) : (
+              <p className="about-text">Cannot read URL from the active tab. Open any regular website tab and retry.</p>
+            )}
           </div>
         </div>
       ) : null}

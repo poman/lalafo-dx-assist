@@ -41,8 +41,8 @@ body {
   line-height: 1.2;
 }
 
-.header-info-button {
-  margin-left: auto;
+.header-icon-button {
+  margin-left: 0;
   width: 28px;
   height: 28px;
   border: 1px solid #d7e3f3;
@@ -54,17 +54,21 @@ body {
   cursor: pointer;
 }
 
-.header-info-button img {
+.header-icon-button--push-right {
+  margin-left: auto;
+}
+
+.header-icon-button img {
   width: 14px;
   height: 14px;
   display: block;
 }
 
-.header-info-button:hover {
+.header-icon-button:hover {
   background: #f2f7ff;
 }
 
-.header-info-button:focus-visible {
+.header-icon-button:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
@@ -920,3 +924,25 @@ body {
 .about-text a:hover {
   text-decoration: underline;
 }
+
+.qr-modal {
+  text-align: center;
+}
+
+.qr-preview-wrap {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+}
+
+.qr-preview {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  border: 1px solid #dce5ef;
+}
+
+.qr-url {
+  word-break: break-all;
+}
+
