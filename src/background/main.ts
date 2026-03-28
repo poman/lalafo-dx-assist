@@ -96,6 +96,10 @@ const wait = async (ms: number): Promise<void> => {
   await new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 };
 
+export const isNoTabWithIdError = (error: unknown): boolean => {
+  return error instanceof Error && error.message.includes('No tab with id');
+};
+
 const sendMessageToTab = async (
   tabId: number,
   message: RequestA11yScanMessage,
@@ -238,7 +242,7 @@ const updateStoredSeoResult = async (
     [SEO_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
     [SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
   });
-  await refreshBadgeForTab(tabId);
+  await safeRefreshBadgeForTab(tabId);
 };
 
 const clearStoredSeoResultForTab = async (tabId: number): Promise<void> => {
@@ -257,7 +261,7 @@ const clearStoredSeoResultForTab = async (tabId: number): Promise<void> => {
     [SEO_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
     [SEO_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
   });
-  await refreshBadgeForTab(tabId);
+  await safeRefreshBadgeForTab(tabId);
 };
 
 const clearAllStoredSeoResults = async (): Promise<void> => {
@@ -277,7 +281,7 @@ const clearAllStoredSeoResults = async (): Promise<void> => {
       }
 
       try {
-        await refreshBadgeForTab(tabId);
+        await safeRefreshBadgeForTab(tabId);
       } catch {
         // Ignore tabs that no longer exist.
       }
@@ -312,6 +316,18 @@ const refreshBadgeForTab = async (tabId: number): Promise<void> => {
   await updateBadgeCount(tabId, combined);
 };
 
+export const safeRefreshBadgeForTab = async (tabId: number): Promise<void> => {
+  try {
+    await refreshBadgeForTab(tabId);
+  } catch (error) {
+    if (isNoTabWithIdError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+};
+
 const updateStoredA11yResult = async (
   tabId: number,
   url: string,
@@ -337,7 +353,7 @@ const updateStoredA11yResult = async (
     [A11Y_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
     [A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
   });
-  await refreshBadgeForTab(tabId);
+  await safeRefreshBadgeForTab(tabId);
 };
 
 const clearStoredA11yResultForTab = async (tabId: number): Promise<void> => {
@@ -356,7 +372,7 @@ const clearStoredA11yResultForTab = async (tabId: number): Promise<void> => {
     [A11Y_RESULTS_BY_TAB_STORAGE_KEY]: byTab,
     [A11Y_ISSUE_COUNT_BY_TAB_STORAGE_KEY]: countByTab,
   });
-  await refreshBadgeForTab(tabId);
+  await safeRefreshBadgeForTab(tabId);
 };
 
 const clearAllStoredA11yResults = async (): Promise<void> => {
@@ -380,7 +396,7 @@ const clearAllStoredA11yResults = async (): Promise<void> => {
       }
 
       try {
-        await refreshBadgeForTab(tabId);
+        await safeRefreshBadgeForTab(tabId);
       } catch {
         // Ignore tabs that no longer exist.
       }
@@ -694,7 +710,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
           tabs
             .filter((tab) => typeof tab.id === 'number')
             .map(async (tab) => {
-              await refreshBadgeForTab(tab.id as number);
+              await safeRefreshBadgeForTab(tab.id as number);
             }),
         );
       }
