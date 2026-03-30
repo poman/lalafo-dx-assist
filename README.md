@@ -2,37 +2,22 @@
 
 Chrome Extension (Manifest V3, React, TypeScript) for QA and developer workflows on Lalafo regional domains.
 
+## Chrome Web Store
+
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Lalafo%20DX%20Assist-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB) [![Privacy Policy](https://img.shields.io/badge/Privacy-Policy-0A66C2?style=for-the-badge&logo=readthedocs&logoColor=white)](https://github.com/poman/lalafo-dx-assist/blob/main/privacy-policy.html) [![Version](https://img.shields.io/badge/Version-0.1.1-1f883d?style=for-the-badge)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB)
+
+| Dark mode | Accessibility |
+| --- | --- |
+| <img src="public/readme/dark-mode.jpg" alt="Dark mode tab" width="260" /> | <img src="public/readme/accessibility-tab.jpg" alt="Accessibility tab" width="260" /> |
+
 ## Features
 
-- `Main` tab (grouped by feature):
-  - `Dark mode`: `Enable QA Dark Mode`
-  - `Accessibility Testing`:
-    - `Enable auto Accessibility checks`
-    - `Show highlights` (default: off)
-      - toggling ON/OFF re-runs scan and keeps issue results/count in sync
-      - when enabled, highlights are shown on supported page navigations
-  - `SEO analyzer`: `Enable auto SEO checks`
-- `Header quick actions`:
-  - `QR` icon opens a modal with QR code for the active tab URL
-  - supports one-click URL copy (`Copy URL`) for sharing page links to mobile devices
-  - fallback message appears when active tab URL cannot be read (e.g. restricted Chrome pages)
-- `Accessibility` tab:
-  - WCAG scan via `axe-core`
-  - issue list with severity, rule id, node count, and docs link
-  - issue navigation (`Previous` / `Next`)
-  - optional `Blink and scroll to rule on click`
-  - focus fallback: when global highlights are off, clicking an issue can still highlight/focus that rule
-- `SEO` tab:
-  - live report stream from active tab
-  - title/description/canonical/H1/OG checks
-  - web vitals (`LCP`, `CLS`, `INP`) and analyzer issues
-- `Fill form` tab (shown as the last tab):
-  - grouped presets: `Login`, `Register`, `Checkout`, `Custom`
-  - create/edit/delete presets with per-market persistence
-  - autofill dispatch to active tab with React-safe value setter + events
-- Header `Info` icon:
-  - opens `About` modal with project overview
-  - repository link and author profile link
+- QA Dark Mode toggle for fast visual checks.
+- Accessibility scanner (`axe-core`) with issue list, highlighting, and previous/next navigation.
+- SEO analyzer with meta checks and core web vitals (`LCP`, `CLS`, `INP`).
+- Form Filler with grouped presets (`Login`, `Register`, `Checkout`, `Custom`) and per-market storage.
+- QR quick action to generate a QR code for the active tab and copy URL in one click.
+- About modal with repository and author links.
 
 ## About
 
@@ -83,7 +68,7 @@ pnpm build
 
      # Create a ZIP file (requires zip utility)
      mkdir -p release
-     zip -r release/lalafo-dx-assist-v0.1.0.zip dist/
+     zip -r release/lalafo-dx-assist-v0.1.1.zip dist/
 
      # If zip is not installed, install it first:
      # Ubuntu/Debian: sudo apt-get install zip
