@@ -4,7 +4,7 @@ Chrome Extension (Manifest V3, React, TypeScript) for QA and developer workflows
 
 ## Chrome Web Store
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Lalafo%20DX%20Assist-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB) [![Privacy Policy](https://img.shields.io/badge/Privacy-Policy-0A66C2?style=for-the-badge&logo=readthedocs&logoColor=white)](https://github.com/poman/lalafo-dx-assist/blob/main/privacy-policy.html) [![Version](https://img.shields.io/badge/Version-0.1.1-1f883d?style=for-the-badge)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Lalafo%20DX%20Assist-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB) [![Privacy Policy](https://img.shields.io/badge/Privacy-Policy-0A66C2?style=for-the-badge&logo=readthedocs&logoColor=white)](https://poman.github.io/lalafo-dx-assist/privacy-policy.html) [![Version](https://img.shields.io/badge/Version-0.1.1-1f883d?style=for-the-badge)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB)
 
 | Dark mode | Accessibility |
 | --- | --- |
