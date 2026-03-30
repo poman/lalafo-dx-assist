@@ -6,7 +6,7 @@ export default defineManifest({
   short_name: 'DX Assist',
   description:
     'QA and developer toolkit for Lalafo domains: dark mode auditing, accessibility checks, SEO diagnostics, and form-filling helpers.',
-  version: '0.1.0',
+  version: '0.1.1',
   homepage_url: 'https://github.com/poman/lalafo-dx-assist',
   action: {
     default_popup: 'index.html',

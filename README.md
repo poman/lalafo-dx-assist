@@ -12,6 +12,10 @@ Chrome Extension (Manifest V3, React, TypeScript) for QA and developer workflows
       - toggling ON/OFF re-runs scan and keeps issue results/count in sync
       - when enabled, highlights are shown on supported page navigations
   - `SEO analyzer`: `Enable auto SEO checks`
+- `Header quick actions`:
+  - `QR` icon opens a modal with QR code for the active tab URL
+  - supports one-click URL copy (`Copy URL`) for sharing page links to mobile devices
+  - fallback message appears when active tab URL cannot be read (e.g. restricted Chrome pages)
 - `Accessibility` tab:
   - WCAG scan via `axe-core`
   - issue list with severity, rule id, node count, and docs link
@@ -65,6 +69,44 @@ pnpm build
 3. Click `Load unpacked` and choose `dist/`.
 4. Open any supported Lalafo page.
 5. Click the extension icon to use `Main`, `Accessibility`, `SEO`, and `Fill form` tools.
+6. Use the `QR` icon in the popup header to generate a QR code for the current page URL.
+
+## Publishing to Chrome Web Store
+
+1. Prepare the extension:
+   - Update extension version in `manifest.config.ts` (this generates `manifest.json` in build output)
+   - Build the production version: `pnpm build`
+   - Create a ZIP file of the `dist` directory:
+     ```bash
+     # Navigate to the project root directory
+     cd /var/www/lalafo-dx-assist
+
+     # Create a ZIP file (requires zip utility)
+     mkdir -p release
+     zip -r release/lalafo-dx-assist-v0.1.0.zip dist/
+
+     # If zip is not installed, install it first:
+     # Ubuntu/Debian: sudo apt-get install zip
+     ```
+
+2. Submit to Chrome Web Store:
+   - Go to [Chrome Developer Dashboard](https://chrome.google.com/webstore/devconsole)
+   - Sign up for a developer account if you haven't already
+   - Pay one-time developer registration fee ($5.00)
+   - Click "New Item"
+   - Upload your ZIP file
+   - Fill in required information:
+     - Description
+     - Screenshots
+     - Icon
+     - Privacy policy
+     - Store listing details
+   - Submit for review
+
+3. Wait for review:
+   - Review process typically takes few business days
+   - Address any feedback if provided by the review team
+   - Once approved, your extension will be published to the Chrome Web Store
 
 ## Accessibility workflow
 
@@ -91,7 +133,7 @@ Then reload the extension in `chrome://extensions`.
 ## Key files
 
 - `manifest.config.ts` - MV3 manifest config, permissions, and content script matches.
-- `src/popup/App.tsx` - popup UI (`Main`, `Accessibility`, `SEO`, `Fill form`, `About`).
+- `src/popup/App.tsx` - popup UI (`Main`, `Accessibility`, `SEO`, `Fill form`, `About`, `QR` modal).
 - `src/background/main.ts` - auto scans, tab update handling, badge synchronization.
 - `src/content/a11yScanner.ts` - axe scan + highlight overlay implementation.
 - `src/popup/a11yScanner.ts` - popup bridge for scan/highlight/focus actions.
