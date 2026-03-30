@@ -6,9 +6,16 @@ Chrome Extension (Manifest V3, React, TypeScript) for QA and developer workflows
 
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Lalafo%20DX%20Assist-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB) [![Privacy Policy](https://img.shields.io/badge/Privacy-Policy-0A66C2?style=for-the-badge&logo=readthedocs&logoColor=white)](https://poman.github.io/lalafo-dx-assist/privacy-policy.html) [![Version](https://img.shields.io/badge/Version-0.1.1-1f883d?style=for-the-badge)](https://chromewebstore.google.com/detail/lalafo-dx-assist/fgbnhegcmlmmhcjgnpdcnnejbadebhnf?authuser=0&hl=en-GB)
 
-| Dark mode | Accessibility |
-| --- | --- |
-| <img src="public/readme/dark-mode.jpg" alt="Dark mode tab" width="260" /> | <img src="public/readme/accessibility-tab.jpg" alt="Accessibility tab" width="260" /> |
+<table width="100%">
+  <tr>
+    <th>Dark mode</th>
+    <th>Accessibility</th>
+  </tr>
+  <tr>
+    <td width="50%"><img src="public/readme/dark-mode.jpg" alt="Dark mode tab" width="100%" /></td>
+    <td width="50%"><img src="public/readme/accessibility-tab.jpg" alt="Accessibility tab" width="100%" /></td>
+  </tr>
+</table>
 
 ## Features
 
